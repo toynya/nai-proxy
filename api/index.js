@@ -5,23 +5,20 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
+  // 判斷要發送到哪個 NovelAI 伺服器
+  // 我們讓前端在 Header 裡告訴我們目標是哪一個
+  const targetType = req.headers['x-target-service']; // 'user' 或 'image'
+  let targetUrl = '';
+  
+  if (targetType === 'user') {
+    targetUrl = 'https://api.novelai.net' + req.url.replace('/api', '');
+  } else if (targetType === 'image') {
+    targetUrl = 'https://image.novelai.net' + req.url.replace('/api', '');
+  } else {
+    return res.status(400).json({ error: "請在 Header 設定 x-target-service 為 'user' 或 'image'" });
+  }
+
   try {
-    let targetBaseUrl = '';
-    let targetPath = '';
-
-    if (req.url.startsWith('/api/user')) {
-      targetBaseUrl = 'https://api.novelai.net';
-      targetPath = req.url.replace('/api/user', '');
-    } else if (req.url.startsWith('/api/image')) {
-      targetBaseUrl = 'https://image.novelai.net';
-      targetPath = req.url.replace('/api/image', '');
-    } else {
-      return res.status(404).json({ error: `無效的路徑: ${req.url}` });
-    }
-
-    const targetUrl = targetBaseUrl + targetPath;
-    console.log(`[Proxy] 轉發至: ${targetUrl}`); // 這行會顯示在 Vercel Logs
-
     const response = await fetch(targetUrl, {
       method: req.method,
       headers: {
@@ -31,19 +28,9 @@ export default async function handler(req, res) {
       body: ['POST', 'PUT'].includes(req.method) ? JSON.stringify(req.body) : null
     });
 
-    // 將 NovelAI 的回應狀態和資料傳回前端
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        res.status(response.status).json(data);
-    } else {
-        const buffer = await response.arrayBuffer();
-        res.setHeader('Content-Type', 'application/octet-stream');
-        res.status(response.status).send(Buffer.from(buffer));
-    }
-
+    const data = await response.arrayBuffer();
+    res.status(response.status).send(Buffer.from(data));
   } catch (error) {
-    console.error(`[Proxy Error]`, error); // 這行會顯示在 Vercel Logs
-    res.status(500).json({ error: '代理內部錯誤: ' + error.message });
+    res.status(500).json({ error: error.message });
   }
 }
