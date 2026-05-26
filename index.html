@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovelAI Image Generator (V4 & V4.5 Support)</title>
+    
+    <!-- 引入 Tailwind CSS (用於排版與樣式) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 JSZip (用於解析 NovelAI API 回傳的 ZIP 檔) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- 引入 FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* 自定義捲軸樣式 */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<!-- 手機版預設 min-h-screen 自然滾動，md(電腦版)以上才鎖定 h-screen -->
+<body class="bg-slate-950 text-slate-300 font-sans min-h-screen md:h-screen md:overflow-hidden">
+
+<div class="p-4 sm:p-6 flex flex-col md:flex-row gap-6 h-full">
+    
+    <!-- 左側：控制面板 (手機版自然高度，電腦版獨立滾動) -->
+    <div class="w-full md:w-[350px] lg:w-[400px] flex flex-col gap-6 md:overflow-y-auto md:pr-2 custom-scrollbar flex-shrink-0">
+        
+        <!-- API Key 區塊 -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-key text-blue-400"></i> API 認證
+            </h2>
+            <div class="flex flex-col gap-3">
+                <input 
+                    type="password" id="apiKeyInput"
+                    placeholder="輸入 NovelAI API Key (pst-...)"
+                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                />
+                <button 
+                    id="authBtn"
+                    class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg py-2 text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                    <i id="authIcon" class="fa-solid fa-shield-halved"></i>
+                    <span id="authText">驗證 / 查詢狀態</span>
+                </button>
+                
+                <div id="authMessage" class="hidden mt-1 text-xs"></div>
+            </div>
+        </div>
+
+        <!-- 參數設定區塊 -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-purple-400"></i> 生成參數
+            </h2>
+            
+            <div class="space-y-5">
+                <!-- 模型選擇 (包含最新 V4.5 與 V4) -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">模型 (Model)</label>
+                    <select id="modelSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                        <optgroup label="新型號 (V4 / V4.5)">
+                            <option value="nai-diffusion-4.5-curated" selected>NAI Diffusion V4.5 Curated</option>
+                            <option value="nai-diffusion-4-curated">NAI Diffusion V4 Curated</option>
+                            <option value="nai-diffusion-4.5-full">NAI Diffusion V4.5 Full</option>
+                            <option value="nai-diffusion-4-full">NAI Diffusion V4 Full</option>
+                        </optgroup>
+                        <optgroup label="舊型號 (V3 / V2)">
+                            <option value="nai-diffusion-3">Anime V3 (nai-diffusion-3)</option>
+                            <option value="nai-diffusion-furry-3">Furry V3</option>
+                            <option value="nai-diffusion-2">Anime V2</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- 解析度 -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">解析度 (Resolution)</label>
+                    <select id="resSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                        <option value="832,1216">縱向 (Portrait) - 832x1216</option>
+                        <option value="1216,832">橫向 (Landscape) - 1216x832</option>
+                        <option value="1024,1024">正方形 (Square) - 1024x1024</option>
+                        <option value="1024,1536">大縱向 (Large Portrait) - 1024x1536</option>
+                        <option value="512,512">小正方 (Small Square) - 512x512</option>
+                    </select>
+                </div>
+
+                <!-- 採樣器 -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">採樣器 (Sampler)</label>
+                    <select id="samplerSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                        <option value="k_euler">k_euler</option>
+                        <option value="k_euler_ancestral">k_euler_ancestral</option>
+                        <option value="k_dpmpp_2s_ancestral">k_dpmpp_2s_ancestral</option>
+                        <option value="k_dpmpp_2m">k_dpmpp_2m</option>
+                        <option value="k_dpmpp_sde">k_dpmpp_sde</option>
+                        <option value="ddim">ddim</option>
+                    </select>
+                </div>
+
+                <!-- Steps & Scale -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1 flex justify-between">
+                            <span>步數 (Steps)</span>
+                            <span id="stepsVal" class="text-white">28</span>
+                        </label>
+                        <input type="range" id="stepsInput" min="1" max="50" step="1" value="28" class="w-full accent-purple-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1 flex justify-between">
+                            <span>引導 (CFG)</span>
+                            <span id="scaleVal" class="text-white">5.0</span>
+                        </label>
+                        <input type="range" id="scaleInput" min="1" max="10" step="0.1" value="5.0" class="w-full accent-purple-500" />
+                    </div>
+                </div>
+
+                <!-- Seed -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 flex justify-between">
+                        <span>種子 (Seed)</span>
+                        <button id="resetSeedBtn" class="text-blue-400 hover:text-blue-300 text-xs">重置隨機 (0)</button>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="number" id="seedInput" value="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
+                        <button id="randomSeedBtn" class="bg-slate-800 border border-slate-700 p-2 rounded-lg hover:bg-slate-700 text-white" title="隨機產生">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 進階開關 (SMEA) -->
+                <div class="flex gap-4 border-t border-slate-800 pt-4">
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" id="smeaCheck" checked class="rounded bg-slate-800 border-slate-700 text-purple-500" /> SMEA
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm" id="smeaDynLabel">
+                        <input type="checkbox" id="smeaDynCheck" class="rounded bg-slate-800 border-slate-700 text-purple-500" /> SMEA DYN
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右側：提示詞與生成結果 (手機版靠內容撐開，電腦版高度填滿並滾動) -->
+    <div class="flex-1 flex flex-col gap-6 min-w-0 md:h-full pb-6 md:pb-0">
+        
+        <!-- 提示詞區塊 -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-shrink-0">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-white mb-2">正向提示詞 (Prompt)</label>
+                    <textarea id="promptInput" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 custom-scrollbar" placeholder="在此輸入您想生成的畫面內容...">1girl, solo, masterpiece, best quality, highly detailed, looking at viewer</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-red-400 mb-2">反向提示詞 (Negative Prompt)</label>
+                    <textarea id="negativePromptInput" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 custom-scrollbar" placeholder="在此輸入不想出現的元素...">nsfw, lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]</textarea>
+                </div>
+                
+                <button id="generateBtn" class="w-full py-3 rounded-xl font-bold text-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="genIcon" class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span id="genText">開始生成圖片 (Generate)</span>
+                </button>
+                
+                <div id="errorMsg" class="hidden bg-red-900/30 border border-red-800 text-red-300 p-3 rounded-lg text-sm"></div>
+            </div>
+        </div>
+
+        <!-- 圖片展示區 (手機版最少 400px 高度，電腦版佔滿剩餘空間並允許滾動) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col min-h-[400px] md:min-h-0 md:overflow-hidden">
+            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2 flex-shrink-0">
+                <i class="fa-solid fa-image text-green-400"></i> 生成結果
+            </h2>
+            
+            <div id="imageGallery" class="flex-1 rounded-xl bg-slate-950 border border-slate-800 p-4 md:overflow-y-auto custom-scrollbar flex flex-wrap gap-6 items-start justify-center content-start">
+                
+                <!-- 預設等待文字 -->
+                <div id="emptyState" class="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 w-full py-10">
+                    <i class="fa-regular fa-image text-6xl opacity-20"></i>
+                    <p>等待生成圖片...</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 代理伺服器網址
+    const PROXY_BASE_URL = 'https://nai-proxy-ten.vercel.app/api';
+
+    // DOM 元素選取
+    const els = {
+        apiKey: document.getElementById('apiKeyInput'),
+        authBtn: document.getElementById('authBtn'),
+        authIcon: document.getElementById('authIcon'),
+        authText: document.getElementById('authText'),
+        authMessage: document.getElementById('authMessage'),
+        
+        model: document.getElementById('modelSelect'),
+        res: document.getElementById('resSelect'),
+        sampler: document.getElementById('samplerSelect'),
+        
+        steps: document.getElementById('stepsInput'),
+        stepsVal: document.getElementById('stepsVal'),
+        scale: document.getElementById('scaleInput'),
+        scaleVal: document.getElementById('scaleVal'),
+        
+        seed: document.getElementById('seedInput'),
+        resetSeedBtn: document.getElementById('resetSeedBtn'),
+        randomSeedBtn: document.getElementById('randomSeedBtn'),
+        
+        smea: document.getElementById('smeaCheck'),
+        smeaDyn: document.getElementById('smeaDynCheck'),
+        smeaDynLabel: document.getElementById('smeaDynLabel'),
+        
+        prompt: document.getElementById('promptInput'),
+        negativePrompt: document.getElementById('negativePromptInput'),
+        
+        generateBtn: document.getElementById('generateBtn'),
+        genIcon: document.getElementById('genIcon'),
+        genText: document.getElementById('genText'),
+        errorMsg: document.getElementById('errorMsg'),
+        
+        gallery: document.getElementById('imageGallery'),
+        emptyState: document.getElementById('emptyState')
+    };
+
+    // 初始設定載入 API Key
+    const savedKey = localStorage.getItem('nai_api_key');
+    if (savedKey) els.apiKey.value = savedKey;
+
+    // 監聽拉桿數值變化
+    els.steps.addEventListener('input', (e) => els.stepsVal.textContent = e.target.value);
+    els.scale.addEventListener('input', (e) => els.scaleVal.textContent = parseFloat(e.target.value).toFixed(1));
+
+    // 監聽 SMEA 聯動
+    els.smea.addEventListener('change', (e) => {
+        els.smeaDyn.disabled = !e.target.checked;
+        els.smeaDynLabel.style.opacity = e.target.checked ? '1' : '0.5';
+        if (!e.target.checked) els.smeaDyn.checked = false;
+    });
+
+    // 種子按鈕
+    els.resetSeedBtn.addEventListener('click', () => els.seed.value = 0);
+    els.randomSeedBtn.addEventListener('click', () => els.seed.value = Math.floor(Math.random() * 4294967295));
+
+    // 驗證 API Key 功能
+    els.authBtn.addEventListener('click', async () => {
+        const key = els.apiKey.value.trim();
+        if (!key) {
+            showAuthMsg('請先輸入 API Key', false);
+            return;
+        }
+
+        // 設置載入狀態
+        els.authBtn.disabled = true;
+        els.authIcon.className = 'fa-solid fa-spinner fa-spin';
+        els.authText.textContent = '驗證中...';
+        els.authMessage.className = 'hidden mt-1 text-xs';
+
+        try {
+            const res = await fetch(`${PROXY_BASE_URL}/user/information`, {
+                method: 'GET',
+                headers: {
+                    'x-target-service': 'user',
+                    'Authorization': `Bearer ${key}`
+                }
+            });
+
+            if (!res.ok) throw new Error(`認證失敗 (HTTP ${res.status}) - 請檢查 API Key`);
+            
+            const data = await res.json();
+            localStorage.setItem('nai_api_key', key);
+            
+            showAuthMsg(`認證成功！訂閱層級: ${data.subscription ? data.subscription.tier : '未知'}`, true);
+        } catch (err) {
+            showAuthMsg(err.message, false);
+        } finally {
+            els.authBtn.disabled = false;
+            els.authIcon.className = 'fa-solid fa-shield-halved';
+            els.authText.textContent = '驗證 / 查詢狀態';
+        }
+    });
+
+    function showAuthMsg(msg, isSuccess) {
+        els.authMessage.textContent = msg;
+        els.authMessage.className = `mt-2 text-xs p-2 rounded ${isSuccess ? 'bg-green-900/30 text-green-300' : 'text-red-400'}`;
+    }
+
+    // 生成圖片功能
+    els.generateBtn.addEventListener('click', async () => {
+        const key = els.apiKey.value.trim();
+        if (!key) {
+            showError('請先在上方輸入並驗證您的 NovelAI API Key。');
+            return;
+        }
+        if (!window.JSZip) {
+            showError('系統尚未準備好 (JSZip 未載入)，請確認網路連線。');
+            return;
+        }
+
+        // 隱藏錯誤與清空狀態
+        els.errorMsg.classList.add('hidden');
+        els.generateBtn.disabled = true;
+        els.genIcon.className = 'fa-solid fa-spinner fa-spin text-xl';
+        els.genText.textContent = '正在詠唱中... (可能需時幾十秒)';
+
+        const [width, height] = els.res.value.split(',').map(Number);
+        const seedVal = parseInt(els.seed.value, 10);
+        const currentSeed = seedVal === 0 ? Math.floor(Math.random() * 4294967295) : seedVal;
+
+        const payload = {
+            input: els.prompt.value,
+            model: els.model.value,
+            action: 'generate',
+            parameters: {
+                width: width,
+                height: height,
+                scale: parseFloat(els.scale.value),
+                sampler: els.sampler.value,
+                steps: parseInt(els.steps.value, 10),
+                seed: currentSeed,
+                n_samples: 1,
+                negative_prompt: els.negativePrompt.value,
+                sm: els.smea.checked,
+                sm_dyn: els.smeaDyn.checked,
+                dynamic_thresholding: false,
+                controlnet_strength: 1,
+                legacy: false,
+                add_original_image: true,
+                uncond_scale: 1,
+                cfg_rescale: 0,
+                noise_schedule: 'native',
+                qualityToggle: true,
+                ucPreset: 0
+            }
+        };
+
+        try {
+            const res = await fetch(`${PROXY_BASE_URL}/ai/generate-image`, {
+                method: 'POST',
+                headers: {
+                    'x-target-service': 'image',
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                let errText = await res.text();
+                try {
+                    const errObj = JSON.parse(errText);
+                    errText = errObj.message || errObj.error || errText;
+                } catch(e) {}
+                throw new Error(`生成失敗: ${errText}`);
+            }
+
+            // 下載壓縮包並解壓縮
+            const arrayBuffer = await res.arrayBuffer();
+            const zip = new JSZip();
+            const unzipped = await zip.loadAsync(arrayBuffer);
+            
+            let foundImage = false;
+            for (const [filename, fileData] of Object.entries(unzipped.files)) {
+                if (filename.endsWith('.png')) {
+                    const blob = await fileData.async('blob');
+                    const url = URL.createObjectURL(blob);
+                    addImageToGallery(url, currentSeed, els.model.value);
+                    foundImage = true;
+                }
+            }
+
+            if (!foundImage) throw new Error('回傳的資料中沒有找到圖片。');
+
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            els.generateBtn.disabled = false;
+            els.genIcon.className = 'fa-solid fa-wand-magic-sparkles';
+            els.genText.textContent = '開始生成圖片 (Generate)';
+        }
+    });
+
+    function showError(msg) {
+        els.errorMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 錯誤: ${msg}`;
+        els.errorMsg.classList.remove('hidden');
+    }
+
+    function addImageToGallery(url, seed, modelName) {
+        // 隱藏「等待生成...」文字
+        if (els.emptyState) els.emptyState.style.display = 'none';
+
+        // 建立圖片區塊
+        const div = document.createElement('div');
+        div.className = 'group relative rounded-lg overflow-hidden border border-slate-700 shadow-2xl max-w-full';
+        
+        div.innerHTML = `
+            <img src="${url}" class="max-h-[60vh] object-contain block transition-transform group-hover:scale-[1.01]" />
+            <div class="absolute bottom-0 left-0 right-0 bg-black/70 backdrop-blur-sm p-3 translate-y-full group-hover:translate-y-0 transition-transform flex justify-between items-center">
+                <span class="text-xs text-slate-300">Seed: ${seed}</span>
+                <button class="dl-btn bg-slate-700 hover:bg-blue-600 text-white w-8 h-8 rounded-full transition-colors flex items-center justify-center" title="下載圖片">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </div>
+        `;
+
+        // 綁定下載按鈕事件
+        div.querySelector('.dl-btn').addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `novelai_${modelName}_${seed}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        // 插入到最前面
+        els.gallery.insertBefore(div, els.gallery.firstChild);
+    }
+</script>
+
+</body>
+</html>
