@@ -142,30 +142,9 @@
     const apiKey = "";
     const PROXY_BASE_URL = 'https://nai-proxy-ten.vercel.app/api';
 
-    const BUILTIN_SCENARIO = `
-================================================================================
-完整跑團劇本：獸化與魔術師
-================================================================================
-
-【劇本概要】
-- 人數：PC 1人 + GM
-- 類型：協力型 / 強制變身 / 獸化題材
-- 限制：5 循環
-- 登場人物：全為男性（PC、NPC、反派魔術師）。
-- 核心矛盾：男性 NPC 被戴上強制獸化的項圈，必須在 5 天內解除，否則將徹底變為動物。
-
-【結局條件】
-1. 解咒成功（順利）：通過「自力儀式」或「拜訪魔術師」成功解咒。NPC 心靈恢復，身體需半日時間逐漸恢復人形。
-2. 解咒失敗 / 儀式失敗：儀式未完成或時間耗盡。NPC 恢復後將留下嚴重的後遺症。
-
-【流程總覽】
-| 時間 | 階段 | 事件內容 |
-| :--- | :--- | :--- |
-| 第 1 天 | 導入 | PC 與 NPC 生活，NPC 戴上項圈，出現異狀。 |
-| 第 2 天 | 主循環 1 | 調查線索，獲得「詛咒」、「項圈」情報。 |
-| 第 3 天 | 主循環 2-3 | 觸發 Master Scene (Ph2, Ph3)，身體異變。 |
-| 第 4 天 | 主循環 4-5 | 觸發 Master Scene (Ph4)，幾乎完全獸化。 |
-| 第 5 天 | CLIMAX | 儀式戰鬥 或 尋找反派魔術師。 |
+    const BUILTIN_SCENARIO = `他們進入到未知的世界的瑟瑟迷宮中，
+    他們在隱藏房間迷了路，
+    需要完成房間上的指示進行交尾才能離開房間。
 `;
 
     const FIELDS = ["暴力", "情動", "知覺", "技術", "知識", "怪異"];
@@ -877,7 +856,7 @@
           玩家提供的【劇本擴充設定/背景】：
           """${extensionToUse}"""
           
-          請務必【完全基於上述玩家提供的劇本背景】與【玩家上傳的圖片形象】來撰寫引人入勝的【導入場景】（第一幕）。若為預設劇本《獸化與魔術師》，請從「第 1 天 導入：PC 與 NPC 生活，NPC 戴上項圈，出現異狀」開始，並給出 3~4 個分類明確的選項。
+          請務必【完全基於上述玩家提供的劇本背景】與【玩家上傳的圖片形象】來撰寫引人入勝的【導入場景】（第一幕）。若為預設劇本《臉紅心跳瑟瑟迷宮》，請從「在迷宮中進入房間並被強制鎖門，被灌入催情氣體，要求完成謎之音的各種離奇古怪的要求才能離開房間」開始，並給出 3~4 個分類明確的選項。
         `;
         await processGmTurn(initialPrompt, true);
       };
@@ -1125,7 +1104,7 @@
               <div className="space-y-8 relative z-10">
                 <div>
                   <h1 className="text-4xl font-black text-white tracking-widest uppercase flex items-center p5-heading">
-                    <Brain className="mr-3"/> INSANE
+                    <Brain className="mr-3"/> TRPG
                   </h1>
                   <p className="text-white font-bold text-sm mt-3 bg-black inline-block px-2 border border-[#444] transform skew-x-[-10deg]"><span className="inline-block transform skew-x-[10deg]">視覺解析 ✖ 多角色 CG 生成 ✖ 劇本構築</span></p>
                 </div>
@@ -1390,7 +1369,7 @@
                   <div className="flex gap-6 mb-5">
                     <label className="flex items-center gap-2 cursor-pointer text-sm font-black uppercase">
                       <input type="radio" value="builtin" checked={scenarioMode === 'builtin'} onChange={() => setScenarioMode('builtin')} className="accent-[#e60012] w-5 h-5" />
-                      <span className={scenarioMode === 'builtin' ? 'text-[#e60012]' : 'text-neutral-500'}>《獸化與魔術師》</span>
+                      <span className={scenarioMode === 'builtin' ? 'text-[#e60012]' : 'text-neutral-500'}>《臉紅心跳瑟瑟迷宮》</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer text-sm font-black uppercase">
                       <input type="radio" value="ai" checked={scenarioMode === 'ai'} onChange={() => setScenarioMode('ai')} className="accent-[#e60012] w-5 h-5" />
