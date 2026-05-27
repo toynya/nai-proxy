@@ -8,23 +8,25 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
+  // 確保回傳永遠是 JSON
+  res.setHeader('Content-Type', 'application/json');
+
   try {
     const { credentials, geminiPayload, targetUrl } = req.body;
     
     if (!credentials || !targetUrl || !geminiPayload) {
-        return res.status(400).json({ error: "缺少必要的參數 (credentials, targetUrl, geminiPayload)" });
+        return res.status(400).json({ error: "後端缺少參數：credentials, targetUrl 或 geminiPayload" });
     }
 
-    // 1. 使用 GoogleAuth 僅僅為了取得 Access Token (這是最乾淨的做法)
+    // 1. 取得認證
     const auth = new GoogleAuth({
       credentials: credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-platform']
     });
     
-    // 取得 Bearer Token
     const accessToken = await auth.getAccessToken();
 
-    // 2. 轉發請求，不干預內容，直接透傳
+    // 2. 發起請求
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -34,9 +36,21 @@ export default async function handler(req, res) {
       body: JSON.stringify(geminiPayload)
     });
 
+    // 3. 處理回應
     const data = await response.json();
-    res.status(response.status).json(data);
+    
+    if (!response.ok) {
+        return res.status(response.status).json({ error: "Google API 拒絕請求", details: data });
+    }
+
+    res.status(200).json(data);
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // 這裡保證回傳 JSON，而不是 HTML
+    res.status(500).json({ 
+        error: "伺服器內部執行錯誤", 
+        message: error.message,
+        stack: error.stack 
+    });
   }
 }
