@@ -1,24 +1,32 @@
 import { GoogleAuth } from 'google-auth-library';
 
 export default async function handler(req, res) {
-  // CORS
+  // --- 1. CORS 設定 ---
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-  // 確保回傳永遠是 JSON
-  res.setHeader('Content-Type', 'application/json');
-
+  // --- 2. 參數驗證 ---
   try {
     const { credentials, geminiPayload, targetUrl } = req.body;
     
     if (!credentials || !targetUrl || !geminiPayload) {
-        return res.status(400).json({ error: "後端缺少參數：credentials, targetUrl 或 geminiPayload" });
+      return res.status(400).json({ 
+        error: "後端缺少參數", 
+        debug: { hasCredentials: !!credentials, hasTarget: !!targetUrl, hasPayload: !!geminiPayload } 
+      });
     }
 
-    // 1. 取得認證
+    // --- 除錯日誌：查看到底要請求哪裡 ---
+    console.log("=== 正在進行代理請求 ===");
+    console.log("目標 URL:", targetUrl);
+
+    // --- 3. 取得認證 ---
     const auth = new GoogleAuth({
       credentials: credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-platform']
@@ -26,7 +34,7 @@ export default async function handler(req, res) {
     
     const accessToken = await auth.getAccessToken();
 
-    // 2. 發起請求
+    // --- 4. 發起請求 ---
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -36,21 +44,29 @@ export default async function handler(req, res) {
       body: JSON.stringify(geminiPayload)
     });
 
-    // 3. 處理回應
-    const data = await response.json();
+    // --- 5. 處理回應 (關鍵點：先檢查是否為 HTML 錯誤頁) ---
+    const contentType = response.headers.get('content-type');
     
     if (!response.ok) {
-        return res.status(response.status).json({ error: "Google API 拒絕請求", details: data });
+        // 如果 API 沒成功，嘗試讀取錯誤文字 (可能是 HTML)
+        const errorText = await response.text();
+        console.error("Google API 返回錯誤:", errorText);
+        return res.status(response.status).json({ 
+            error: "Google API 請求失敗", 
+            details: errorText.substring(0, 200) // 只取錯誤訊息前 200 字，避免過長
+        });
     }
 
+    // 如果成功，讀取 JSON
+    const data = await response.json();
     res.status(200).json(data);
 
   } catch (error) {
-    // 這裡保證回傳 JSON，而不是 HTML
+    // 捕捉伺服器內部錯誤
+    console.error("後端執行錯誤:", error);
     res.status(500).json({ 
-        error: "伺服器內部執行錯誤", 
-        message: error.message,
-        stack: error.stack 
+        error: "伺服器內部錯誤", 
+        message: error.message 
     });
   }
 }
