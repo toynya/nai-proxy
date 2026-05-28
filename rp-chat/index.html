@@ -77,9 +77,9 @@
         }
     </style>
 </head>
-<body class="text-slate-800 flex items-center justify-center min-h-screen">
+<body class="text-slate-800 m-0 p-0 h-[100dvh] w-full overflow-hidden">
 
-    <div id="root" class="w-full h-screen relative overflow-hidden"></div>
+    <div id="root" class="w-full h-full relative overflow-hidden"></div>
 
     <script type="text/babel">
         const apiKey = ""; 
@@ -2116,7 +2116,7 @@ ${isDark ? '【注意：當前為裡模式反轉性格】請依照反轉性格�
             const headerAffection = getAffectionInfo(currentRoleData?.affection || 0, isDark);
 
             return (
-                <div className={`flex h-screen w-full relative overflow-hidden transition-all duration-300 ${themeClasses.appBg}`}>
+                <div className={`flex h-[100dvh] w-full relative overflow-hidden transition-all duration-300 ${themeClasses.appBg}`}>
                     
                     {/* ===== 圖片全螢幕預覽 Modal ===== */}
                     {previewImageUrl && (
@@ -2636,7 +2636,7 @@ ${isDark ? '【注意：當前為裡模式反轉性格】請依照反轉性格�
                         )}
 
                         {/* 頂部 Header */}
-                        <header className={`h-16 border-b flex items-center justify-between px-4 sm:px-6 z-20 transition-all duration-300 ${themeClasses.headerBg}`}>
+                        <header className={`shrink-0 h-16 border-b flex items-center justify-between px-4 sm:px-6 z-20 transition-all duration-300 ${themeClasses.headerBg}`}>
                             <div className="flex items-center gap-3 sm:gap-4 w-full justify-between">
                                 <div className="flex items-center gap-3 w-[85%] sm:w-[90%]">
                                     <button onClick={() => setIsSettingsOpen(true)} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-500 transition-colors">
@@ -2939,7 +2939,7 @@ ${isDark ? '【注意：當前為裡模式反轉性格】請依照反轉性格�
                         )}
 
                         {/* 輸入控制面板 */}
-                        <div className={`p-3 sm:p-4 backdrop-blur-md border-t z-20 relative ${themeClasses.footer}`}>
+                        <div className={`shrink-0 p-3 sm:p-4 backdrop-blur-md border-t z-20 relative ${themeClasses.footer}`}>
                             <div className="flex flex-wrap items-center gap-2 mb-2.5 px-1">
                                 <button 
                                     onClick={() => { if (!isSpecialModeActive && !isScenarioMode && !isAutoImageMode) setEnableImageGen(!enableImageGen); }} 
