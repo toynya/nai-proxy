@@ -391,6 +391,17 @@
                 </h2>
                 
                 <div class="space-y-6">
+                    <!-- 新增的 Booru 導入區塊 -->
+                    <div class="bg-black p-4 border-4 border-[#333] flex flex-col md:flex-row gap-4 items-end shadow-[4px_4px_0_var(--hifi-orange)] transition-all">
+                        <div class="flex-1 w-full">
+                            <label class="block text-sm font-black text-blue-400 mb-2 uppercase">BOORU POST URL (E621/E926/Danbooru/Gelbooru)</label>
+                            <input type="text" id="booruUrlInput" placeholder="例如: https://e621.net/posts/12345" class="w-full hifi-input p-3 text-sm focus:border-blue-500 focus:shadow-[4px_4px_0_blue]">
+                        </div>
+                        <button id="btnImportBooru" onclick="importBooruTags()" class="w-full md:w-auto hifi-btn px-6 py-3 !bg-blue-600 shadow-[4px_4px_0_#fff] shrink-0 border-4 border-black hover:!bg-blue-500">
+                            <span class="hifi-btn-inner">⬇️ 從圖庫導入標籤 (IMPORT)</span>
+                        </button>
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">原始 Tags 輸入框</label>
@@ -872,7 +883,7 @@
 根據以下勾選項目的具體要求，生成相應的 e621 標籤：
 ${reqText.join('\n')}
 
-回傳 JSON 格式 (scenario, clothing, behavior, perspective, interactive_object) (未勾選或不適用的留空字串)。標籤必須是 e621 適用的純小寫英文，單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只輸出標籤，不要輸出多餘的說明。`;
+回傳 JSON 格式 (scenario, clothing, behavior, perspective, interactive_object) (未勾選或不適用的留空字串)。標籤必須是 e621 適用的純小寫英文，單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只 單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只輸出標籤，不要輸出多餘的說明。`;
 
             const schema = { 
                 type: "OBJECT", 
@@ -978,8 +989,105 @@ ${reqText.join('\n')}
         }
 
         // ==========================================
-        // Tab 4: 標籤優化 (完全還原本來的長文本與物種下拉選單的取代邏輯)
+        // Tab 4: Booru 標籤導入與標籤優化 (加倍思考：深掘各大圖庫 API 結構差異)
         // ==========================================
+        async function importBooruTags() {
+            const urlInput = document.getElementById('booruUrlInput').value.trim();
+            if(!urlInput) return showToast("請輸入 Booru 圖片頁面網址！");
+
+            const btn = document.getElementById('btnImportBooru');
+            btn.disabled = true;
+            btn.querySelector('.hifi-btn-inner').textContent = "正在獲取中 (FETCHING...)";
+
+            let apiUrl = '';
+            let site = '';
+
+            try {
+                const urlObj = new URL(urlInput);
+                const hostname = urlObj.hostname;
+
+                // 針對四大圖庫進行客製化網址解析與 API 生成
+                if (hostname.includes('e621.net')) {
+                    const match = urlObj.pathname.match(/\/posts\/(\d+)/);
+                    if(!match) throw new Error("無法解析 e621 網址格式，找不到 Post ID");
+                    apiUrl = `https://e621.net/posts/${match[1]}.json`;
+                    site = 'e621';
+                } else if (hostname.includes('e926.net')) {
+                    const match = urlObj.pathname.match(/\/posts\/(\d+)/);
+                    if(!match) throw new Error("無法解析 e926 網址格式，找不到 Post ID");
+                    apiUrl = `https://e926.net/posts/${match[1]}.json`;
+                    site = 'e926';
+                } else if (hostname.includes('danbooru.donmai.us')) {
+                    const match = urlObj.pathname.match(/\/posts\/(\d+)/);
+                    if(!match) throw new Error("無法解析 Danbooru 網址格式，找不到 Post ID");
+                    apiUrl = `https://danbooru.donmai.us/posts/${match[1]}.json`;
+                    site = 'danbooru';
+                } else if (hostname.includes('gelbooru.com')) {
+                    const id = urlObj.searchParams.get('id');
+                    if(!id) throw new Error("無法解析 Gelbooru 網址格式，找不到 id 參數");
+                    apiUrl = `https://gelbooru.com/index.php?page=dapi&s=post&q=index&id=${id}&json=1`;
+                    site = 'gelbooru';
+                } else {
+                    throw new Error("目前僅支援 E621, E926, Danbooru, Gelbooru 四大圖庫");
+                }
+
+                // 呼叫中轉 Proxy：考量代理配置可能為 GET 或 POST，採用優先嘗試 POST 再 Fallback 到 GET 的無死角策略
+                let proxyRes;
+                try {
+                    proxyRes = await fetch(`${PROXY_BASE_URL}/booru`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: apiUrl, targetUrl: apiUrl }) // 同時兼容兩種常見變數命名
+                    });
+                } catch (e) {
+                    // 若 POST 失敗或不被允許，將在下方回退到 GET
+                }
+
+                if (!proxyRes || !proxyRes.ok) {
+                    proxyRes = await fetch(`${PROXY_BASE_URL}/booru?url=${encodeURIComponent(apiUrl)}`);
+                }
+
+                if(!proxyRes.ok) throw new Error(`Proxy 請求遭到拒絕 (狀態碼: ${proxyRes.status})`);
+
+                const data = await proxyRes.json();
+                let tags = "";
+
+                // 針對不同圖庫的 JSON 結構差異提取 Tag
+                if (site === 'e621' || site === 'e926') {
+                    if (!data.post || !data.post.tags) throw new Error("該貼文可能已被刪除或找不到標籤資料");
+                    const tagsObj = data.post.tags;
+                    const allTags = [];
+                    // e621/e926 將標籤分為 general, species, character, artist 等多個陣列，必須全部合併
+                    for (const category in tagsObj) {
+                        if(Array.isArray(tagsObj[category])) {
+                            allTags.push(...tagsObj[category]);
+                        }
+                    }
+                    tags = allTags.join(', ');
+                } else if (site === 'danbooru') {
+                    if (!data.tag_string) throw new Error("該貼文可能已被刪除或找不到標籤資料");
+                    // Danbooru 是一串以空白分隔的文字
+                    tags = data.tag_string.split(' ').join(', ');
+                } else if (site === 'gelbooru') {
+                    if (!data.post || !data.post[0] || !data.post[0].tags) throw new Error("該貼文可能已被刪除或找不到標籤資料");
+                    // Gelbooru 是一串以空白分隔的文字，且包裝在陣列裡
+                    tags = data.post[0].tags.split(' ').join(', ');
+                }
+
+                if(!tags) throw new Error("成功連線但無法從該圖片中提取出任何標籤");
+
+                document.getElementById('tbRawTags').value = tags;
+                showToast("✓ 成功導入 Booru 標籤並填入輸入框！");
+
+            } catch (err) {
+                showToast("導入失敗: " + err.message);
+                console.error("Booru Import Error:", err);
+            } finally {
+                btn.disabled = false;
+                btn.querySelector('.hifi-btn-inner').textContent = "⬇️ 從圖庫導入標籤 (IMPORT)";
+            }
+        }
+
         async function optimizeToolboxTags() {
             const rawTags = document.getElementById('tbRawTags').value.trim();
             if(!rawTags) return showToast("請輸入原始 Tags");
