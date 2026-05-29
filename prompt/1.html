@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt 生成終端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+
+        :root {
+            --hifi-black: #0a0a0a;
+            --hifi-yellow: #fbbf24;
+            --hifi-orange: #f97316;
+            --hifi-red: #ef4444;
+            --hifi-gray: #1f2937;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--hifi-black);
+            background-image: radial-gradient(#333 2px, transparent 2px);
+            background-size: 24px 24px;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* 捲軸美化 */
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: var(--hifi-black); border-left: 3px solid #333; }
+        ::-webkit-scrollbar-thumb { background: var(--hifi-orange); border: 3px solid var(--hifi-black); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--hifi-yellow); }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--hifi-gray); border: none; }
+
+        /* Hi-Fi Rush UI 元件 */
+        .hifi-panel {
+            background: var(--hifi-black);
+            border: 4px solid #fff;
+            box-shadow: 8px 8px 0px 0px var(--hifi-orange);
+            position: relative;
+        }
+        
+        .hifi-panel-yellow {
+            background: var(--hifi-black);
+            border: 4px solid var(--hifi-yellow);
+            box-shadow: 8px 8px 0px 0px var(--hifi-red);
+        }
+
+        .hifi-input {
+            background: #111;
+            border: 3px solid #444;
+            color: #fff;
+            font-weight: 900;
+            transition: all 0.1s;
+        }
+        .hifi-input:focus {
+            outline: none;
+            border-color: var(--hifi-yellow);
+            box-shadow: 6px 6px 0px 0px var(--hifi-yellow);
+            background: #000;
+        }
+        .hifi-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hifi-btn {
+            background: var(--hifi-orange);
+            color: #fff;
+            border: 4px solid #000;
+            font-weight: 900;
+            text-transform: uppercase;
+            box-shadow: 6px 6px 0px 0px #fff;
+            transform: skewX(-5deg);
+            transition: all 0.1s;
+            cursor: pointer;
+            position: relative;
+        }
+        .hifi-btn:hover:not(:disabled) {
+            background: var(--hifi-yellow);
+            color: #000;
+            transform: skewX(-5deg) translate(-2px, -2px);
+            box-shadow: 8px 8px 0px 0px #fff;
+        }
+        .hifi-btn:disabled {
+            filter: grayscale(1);
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: skewX(-5deg) translate(2px, 2px);
+        }
+        .hifi-btn-inner {
+            display: inline-block;
+            transform: skewX(5deg);
+        }
+
+        .hifi-tab {
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 0.75rem 1.5rem;
+            border: 4px solid transparent;
+            color: #666;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .hifi-tab.active {
+            color: #000;
+            background: var(--hifi-yellow);
+            border-color: #000;
+            box-shadow: 4px 4px 0px 0px var(--hifi-orange);
+            transform: translateY(-4px);
+        }
+        .hifi-tab:hover:not(.active) {
+            color: #fff;
+            background: var(--hifi-gray);
+        }
+
+        .tab-hidden { display: none !important; }
+
+        .scanner-container { position: relative; overflow: hidden; }
+        @keyframes scan {
+            0% { top: -10%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .scanner-line {
+            position: absolute; left: 0; width: 100%; height: 6px;
+            background: var(--hifi-yellow);
+            box-shadow: 0 0 15px 5px rgba(251, 191, 36, 0.6);
+            animation: scan 2s linear infinite;
+            z-index: 20; display: none;
+        }
+        .is-scanning .scanner-line { display: block; }
+        
+        .stripe-bg {
+            background: repeating-linear-gradient(45deg, var(--hifi-black), var(--hifi-black) 10px, #1a1a1a 10px, #1a1a1a 20px);
+        }
+
+        .coord-canvas {
+            position: relative;
+            background: #111;
+            border: 4px dashed #555;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .coord-marker {
+            position: absolute;
+            width: 40px; height: 40px;
+            transform: translate(-50%, -50%);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; color: #000;
+            border: 3px solid #000;
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .coord-marker:active { cursor: grabbing; scale: 1.1; }
+        
+        .grid-line-h { position: absolute; width: 100%; height: 1px; background: rgba(255,255,255,0.1); left: 0; pointer-events: none;}
+        .grid-line-v { position: absolute; height: 100%; width: 1px; background: rgba(255,255,255,0.1); top: 0; pointer-events: none;}
+
+        #toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: var(--hifi-orange); color: #000;
+            border: 4px solid #000; padding: 1rem 1.5rem;
+            font-weight: 900; text-transform: uppercase;
+            box-shadow: 6px 6px 0px #fff;
+            transform: translateY(150%) skewX(-5deg);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 9999;
+        }
+        #toast.show { transform: translateY(0) skewX(-5deg); }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- 頁首與導覽列 -->
+    <header class="stripe-bg border-b-8 border-white shrink-0 relative z-20">
+        <div class="max-w-screen-2xl mx-auto px-6 pt-6">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-black text-white uppercase tracking-widest flex items-center gap-3 drop-shadow-[4px_4px_0_var(--hifi-orange)] skew-x-[-10deg]">
+                        <span class="inline-block bg-white text-black px-3 py-1 mr-2 border-4 border-black">Furry</span>
+                        AI PROMPT TERMINAL
+                    </h1>
+                </div>
+                <div class="text-sm font-black bg-[var(--hifi-yellow)] text-black px-4 py-2 border-4 border-black shadow-[4px_4px_0_#fff] skew-x-[-5deg]">
+                    <span class="inline-block skew-x-[5deg]">VER. NovelAI</span>
+                </div>
+            </div>
+
+            <div class="flex gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap custom-scrollbar pb-4 pt-2">
+                <button onclick="switchTab('configView')" id="tab-config" class="hifi-tab active">⚙️ 終端配置 (API)</button>
+                <button onclick="switchTab('generatorView')" id="tab-generator" class="hifi-tab">✨ AI 發想引擎</button>
+                <button onclick="switchTab('imageToTagsView')" id="tab-imageToTags" class="hifi-tab">🖼️ 深度反推 Tags</button>
+                <button onclick="switchTab('toolboxView')" id="tab-toolbox" class="hifi-tab">🧰 標籤優化工具</button>
+                <button onclick="switchTab('naiView')" id="tab-nai" class="hifi-tab">🎨 NOVELAI 繪製</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容區塊 -->
+    <div class="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-8">
+
+        <!-- ==================== 分頁 1: 終端配置 (API) ==================== -->
+        <main id="configView" class="max-w-4xl mx-auto w-full">
+            <div class="hifi-panel p-6 md:p-10">
+                <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_var(--hifi-orange)]">
+                    [ SYS.CONFIG ] 核心推理模型設定
+                </h2>
+                
+                <div class="space-y-8">
+                    <!-- Provider Selection -->
+                    <div class="flex flex-wrap gap-6 bg-black p-5 border-4 border-[#333]">
+                        <label class="flex items-center gap-3 cursor-pointer font-black uppercase text-lg">
+                            <input type="radio" name="aiProvider" value="aistudio" checked onchange="updateProviderUI()" class="w-6 h-6 accent-[var(--hifi-orange)]">
+                            <span class="provider-label text-[var(--hifi-yellow)]">AI STUDIO</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer font-black uppercase text-lg">
+                            <input type="radio" name="aiProvider" value="gcp" onchange="updateProviderUI()" class="w-6 h-6 accent-[var(--hifi-orange)]">
+                            <span class="provider-label text-gray-500">GCP (VERTEX AI)</span>
+                        </label>
+                    </div>
+
+                    <!-- Model Selection -->
+                    <div>
+                        <label class="block text-sm font-black uppercase text-[var(--hifi-yellow)] mb-2">REASONING MODEL / 推理模型</label>
+                        <select id="cfgModel" class="w-full hifi-input p-4 text-base uppercase">
+                            <option value="gemini-2.5-flash-preview-09-2025">Gemini 2.5 Flash Preview 09-2025 (預設)</option>
+                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                            <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
+                            <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                            <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                            <option value="gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
+                        </select>
+                    </div>
+
+                    <!-- AI Studio Fields -->
+                    <div id="cfgAiStudioFields" class="space-y-4">
+                        <label class="block text-sm font-black uppercase text-[var(--hifi-yellow)] mb-2">API KEY (AI STUDIO)</label>
+                        <input type="password" id="cfgAiKey" placeholder="留空即可在 Canvas 環境直接使用免金鑰推理..." class="w-full hifi-input p-4 text-base">
+                        <p class="text-xs font-bold text-gray-400">＊若身處 Canvas 或整合環境，完全不需要輸入任何金鑰，直接留空即可調用！</p>
+                    </div>
+
+                    <!-- GCP Fields -->
+                    <div id="cfgGcpFields" class="space-y-6 hidden">
+                        <div>
+                            <label class="block text-sm font-black uppercase text-[var(--hifi-orange)] mb-2">GCP JSON 服務帳號金鑰</label>
+                            <label class="flex flex-col items-center justify-center w-full h-32 border-4 border-dashed border-[#555] hover:border-[var(--hifi-orange)] hover:bg-[#1a1a1a] transition cursor-pointer bg-black">
+                                <span id="gcpStatusText" class="text-gray-400 font-black text-sm uppercase flex flex-col items-center gap-2">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    點擊上傳 JSON 文件
+                                </span>
+                                <input type="file" id="cfgGcpFile" accept=".json" class="hidden" onchange="handleGcpUpload(event)">
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-black uppercase text-[var(--hifi-orange)] mb-2">REGION / 服務區域</label>
+                            <select id="cfgGcpRegion" class="w-full hifi-input p-4 text-base uppercase">
+                                <option value="global">global</option>
+                                <option value="us-central1">us-central1</option>
+                                <option value="asia-east1">asia-east1</option>
+                                <option value="asia-northeast1">asia-northeast1</option>
+                                <option value="europe-west1">europe-west1</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ==================== 分頁 2: 隨機 Prompt 生成器 ==================== -->
+        <main id="generatorView" class="tab-hidden max-w-4xl mx-auto w-full">
+            <div class="hifi-panel p-6 md:p-10">
+                <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_var(--hifi-yellow)]">
+                    [ MODULE.GEN ] AI 隨機靈感發想
+                </h2>
+                <p class="text-sm text-gray-300 mb-8 font-bold leading-relaxed">輸入角色特徵，AI 將根據版權與設定深度發想，並將結果補充至後方。</p>
+                
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">角色基本特徵 Prompt</label>
+                        <textarea id="basePromptInput" rows="2" class="w-full p-4 hifi-input resize-none font-mono" placeholder="例如: bowser_jr. super_mario anthro turtle..."></textarea>
+                    </div>
+                    
+                    <div class="bg-black p-6 border-4 border-[#333]">
+                        <label class="block text-sm font-black text-white mb-4 uppercase">勾選發想維度：</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="chkScenario" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">情景與佈置</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="chkClothing" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">服裝與風格</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="chkBehavior" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">行為與表情</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="chkPerspective" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">透視與鏡頭</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group sm:col-span-2">
+                                <input type="checkbox" id="chkHeldItem" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">互動的物件</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button id="btnGeneratePrompt" onclick="generateRandomPrompt()" class="w-full py-4 hifi-btn text-xl">
+                        <span class="hifi-btn-inner">啟動 AI 引擎 (GENERATE)</span>
+                    </button>
+                    
+                    <div class="mt-6 border-t-4 border-[#333] pt-6">
+                        <label class="block text-sm font-black text-white mb-2 uppercase">生成結果 (完整串接)</label>
+                        <textarea id="generatedPromptOutput" rows="5" readonly class="w-full p-4 hifi-input resize-none font-mono text-[var(--hifi-yellow)]"></textarea>
+                        
+                        <div class="flex flex-wrap gap-3 mt-4">
+                            <button onclick="copyToClipboard('generatedPromptOutput')" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製文字</span></button>
+                            <button onclick="sendToNai('generatedPromptOutput', 'pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
+                            <button onclick="sendToNai('generatedPromptOutput', 'npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ==================== 分頁 3: AI 圖像反推 Tags ==================== -->
+        <main id="imageToTagsView" class="tab-hidden max-w-6xl mx-auto w-full">
+            <div class="hifi-panel p-6 md:p-10">
+                <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_#3b82f6]">
+                    [ MODULE.VISION ] 圖像深度解析
+                </h2>
+                <div class="flex flex-col lg:flex-row gap-8">
+                    <!-- 上傳區 -->
+                    <div class="w-full lg:w-1/3 flex flex-col gap-6">
+                        <label id="uploadLabel" class="flex flex-col items-center justify-center w-full h-40 border-4 border-dashed border-[#555] hover:border-[#3b82f6] hover:bg-[#1a1a1a] transition cursor-pointer bg-black">
+                            <span class="text-gray-400 font-black text-sm uppercase flex flex-col items-center gap-2">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                載入視覺影像
+                            </span>
+                            <input type="file" id="imageUploadInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                        </label>
+                        
+                        <div id="imagePreviewContainer" class="hidden w-full border-4 border-[#333] relative bg-black flex items-center justify-center scanner-container group cursor-pointer h-64" onclick="document.getElementById('imageUploadInput').click()">
+                            <div class="scanner-line"></div>
+                            <img id="imagePreview" src="" class="w-full h-full object-contain relative z-10 p-2">
+                            <div class="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-15 font-black uppercase tracking-widest">更換圖片</div>
+                        </div>
+
+                        <button id="btnAnalyzeImage" onclick="analyzeImage()" disabled class="w-full py-4 hifi-btn text-xl !bg-blue-600 shadow-[6px_6px_0_#fff]">
+                            <span class="hifi-btn-inner">開始掃描 (ANALYZE)</span>
+                        </button>
+                        <div id="analyzeStatus" class="text-center text-xs text-gray-500 font-black uppercase tracking-widest">AWAITING IMAGE...</div>
+                    </div>
+                    
+                    <!-- 結果區 -->
+                    <div class="w-full lg:w-2/3 bg-black border-4 border-[#333] p-6 flex flex-col">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">角色特徵/數量 (Base)</label><textarea id="out_base" rows="3" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">情景 (Scenario)</label><textarea id="out_scenario" rows="3" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">服裝 (Clothing)</label><textarea id="out_clothing" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">行為 (Behavior)</label><textarea id="out_behavior" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">透視 (Perspective)</label><textarea id="out_perspective" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">物件 (Held)</label><textarea id="out_held" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-3 mt-6 pt-4 border-t-4 border-[#333]">
+                            <button onclick="copyAllAnalyzedTags()" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製全部陣列</span></button>
+                            <button onclick="sendAnalyzedToNai('pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
+                            <button onclick="sendAnalyzedToNai('npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ==================== 分頁 4: AI Prompt 工具箱 ==================== -->
+        <main id="toolboxView" class="tab-hidden max-w-4xl mx-auto w-full">
+            <div class="hifi-panel-yellow p-6 md:p-10">
+                <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_var(--hifi-red)]">
+                    [ MODULE.OPTIMIZE ] 標籤結構重組
+                </h2>
+                
+                <div class="space-y-6">
+                    <!-- 新增功能：Booru 標籤深度導入介面 -->
+                    <div class="bg-black p-5 border-4 border-[#333]">
+                        <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase flex items-center gap-2">
+                            <span>📥 從 Booru 圖片頁面導入標籤 (E621 / E926 / Danbooru)</span>
+                        </label>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input type="text" id="tbImportUrl" placeholder="請在此貼上圖片網址 (例如: https://e621.net/posts/3815340)..." class="flex-1 hifi-input p-3 text-sm font-mono">
+                            <button id="btnImportBooru" onclick="importBooruTags()" class="hifi-btn px-6 py-3 shrink-0 !bg-blue-600 shadow-[4px_4px_0_#fff]">
+                                <span class="hifi-btn-inner">載入標籤 (IMPORT)</span>
+                            </button>
+                        </div>
+                        <p class="text-xs font-bold text-gray-400 mt-2">＊直接支援貼入 e621、e926 或 Danbooru 的 Post 網頁網址，將自動解析分類並帶入下方的原始輸入框中。</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">原始 Tags 輸入框</label>
+                            <textarea id="tbRawTags" rows="4" class="w-full p-4 hifi-input resize-none font-mono" placeholder="貼上或從上方導入需要整理優化的混亂 Tags..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">自然語言潤飾要求</label>
+                            <textarea id="tbRefineText" rows="4" class="w-full p-4 hifi-input resize-none" placeholder="例如：加上賽博龐克風格，改成下雨..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black p-6 border-4 border-[#333]">
+                        <label class="block text-sm font-black text-white mb-4 uppercase">結構化處理選項</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- 完整還原的下拉選單 -->
+                            <div class="flex items-center gap-3 col-span-1 sm:col-span-2 group">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" id="tbChkSpecies" onchange="toggleSpeciesDropdown()" class="w-5 h-5 accent-[var(--hifi-red)]">
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white whitespace-nowrap">替換物種 ➔</span>
+                                </label>
+                                <select id="tbSpeciesSelect" disabled class="flex-1 p-2 hifi-input text-sm font-mono w-full uppercase cursor-pointer">
+                                    <option value="random">🎲 隨機物種</option>
+                                    <option value="cat">cat (貓)</option>
+                                    <option value="monster">monster (怪物)</option>
+                                    <option value="dog">dog (狗)</option>
+                                    <option value="demon">demon (惡魔)</option>
+                                    <option value="wolf">wolf (狼)</option>
+                                    <option value="dragon">dragon (龍)</option>
+                                    <option value="fox">fox (狐狸)</option>
+                                    <option value="tiger">tiger (老虎)</option>
+                                    <option value="rabbit">rabbit (兔子)</option>
+                                    <option value="lion">lion (獅子)</option>
+                                    <option value="bear">bear (熊)</option>
+                                    <option value="cow">cow (牛)</option>
+                                    <option value="bird">bird (鳥)</option>
+                                    <option value="goat">goat (山羊)</option>
+                                    <option value="fish">fish (魚)</option>
+                                    <option value="hedgehog">hedgehog (刺蝟)</option>
+                                    <option value="monkey">monkey (猴子)</option>
+                                    <option value="hyena">hyena (鬣狗)</option>
+                                    <option value="horse">horse (馬)</option>
+                                    <option value="reptile">reptile (爬蟲類)</option>
+                                    <option value="raccoon">raccoon (浣熊)</option>
+                                    <option value="snow_leopard">snow_leopard (雪豹)</option>
+                                    <option value="mouse">mouse (老鼠)</option>
+                                    <option value="komainu">komainu (狛犬)</option>
+                                    <option value="deer">deer (鹿)</option>
+                                    <option value="jackal">jackal (胡狼)</option>
+                                    <option value="panda">panda (熊貓)</option>
+                                    <option value="shark">shark (鯊魚)</option>
+                                    <option value="sheep">sheep (綿羊)</option>
+                                    <option value="slime">slime (史萊姆)</option>
+                                    <option value="boar">boar (野豬)</option>
+                                    <option value="pig">pig (豬)</option>
+                                    <option value="jaguar">jaguar (美洲豹)</option>
+                                    <option value="dinosaur">dinosaur (恐龍)</option>
+                                    <option value="leopard">leopard (豹)</option>
+                                    <option value="crocodile">crocodile (鱷魚)</option>
+                                    <option value="panther">panther (黑豹)</option>
+                                    <option value="bat">bat (蝙蝠)</option>
+                                    <option value="owl">owl (貓頭鷹)</option>
+                                    <option value="squirrel">squirrel (松鼠)</option>
+                                    <option value="duck">duck (鴨子)</option>
+                                    <option value="reindeer">reindeer (馴鹿)</option>
+                                    <option value="parrot">parrot (鸚鵡)</option>
+                                    <option value="weasel">weasel (黃鼠狼)</option>
+                                    <option value="red_panda">red_panda (小熊貓)</option>
+                                    <option value="unicorn">unicorn (獨角獸)</option>
+                                    <option value="chicken">chicken (雞)</option>
+                                    <option value="coyote">coyote (郊狼)</option>
+                                    <option value="otter">otter (水獺)</option>
+                                    <option value="hamster">hamster (倉鼠)</option>
+                                    <option value="meerkat">meerkat (狐獴)</option>
+                                    <option value="skunk">skunk (臭鼬)</option>
+                                </select>
+                            </div>
+                            <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" id="tbChkOrder" checked class="w-5 h-5 accent-[var(--hifi-red)]"> <span class="font-black uppercase text-gray-400 group-hover:text-white">重要度排序</span></label>
+                            <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" id="tbChkComma" checked class="w-5 h-5 accent-[var(--hifi-red)]"> <span class="font-black uppercase text-gray-400 group-hover:text-white">使用逗號分隔</span></label>
+                            <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" id="tbChkText" checked class="w-5 h-5 accent-[var(--hifi-red)]"> <span class="font-black uppercase text-gray-400 group-hover:text-white">刪除文字與浮水印</span></label>
+                            <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" id="tbChkSimplify" checked class="w-5 h-5 accent-[var(--hifi-red)]"> <span class="font-black uppercase text-gray-400 group-hover:text-white">精簡標籤</span></label>
+                            <label class="flex items-center gap-3 cursor-pointer group sm:col-span-2"><input type="checkbox" id="tbChkColor" class="w-5 h-5 accent-[var(--hifi-red)]"> <span class="font-black uppercase text-gray-400 group-hover:text-white">打亂/新增部位顏色</span></label>
+                        </div>
+                    </div>
+                    
+                    <button id="btnOptimize" onclick="optimizeToolboxTags()" class="w-full py-4 hifi-btn text-xl !bg-[var(--hifi-red)] shadow-[6px_6px_0_var(--hifi-yellow)]">
+                        <span class="hifi-btn-inner">執行優化 (EXECUTE)</span>
+                    </button>
+                    
+                    <div class="mt-6 border-t-4 border-[#333] pt-6">
+                        <label class="block text-sm font-black text-white mb-2 uppercase">優化結果</label>
+                        <textarea id="tbOptimizedOutput" rows="4" readonly class="w-full p-4 hifi-input resize-none font-mono text-[var(--hifi-red)]"></textarea>
+                        
+                        <div class="flex flex-wrap gap-3 mt-4">
+                            <button onclick="copyToClipboard('tbOptimizedOutput')" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製文字</span></button>
+                            <button onclick="sendToNai('tbOptimizedOutput', 'pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
+                            <button onclick="sendToNai('tbOptimizedOutput', 'npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ==================== 分頁 5: NOVELAI 繪製 ==================== -->
+        <main id="naiView" class="tab-hidden max-w-screen-2xl mx-auto w-full">
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+                
+                <!-- 左側設定與控制 -->
+                <div class="xl:col-span-5 flex flex-col gap-6">
+                    <div class="hifi-panel p-6">
+                        <h2 class="text-xl font-black text-white uppercase tracking-widest mb-4 border-b-4 border-white pb-2">NOVELAI CONFIG</h2>
+                        
+                        <!-- Auth -->
+                        <div class="mb-5 bg-black p-4 border-4 border-[#333]">
+                            <label class="block text-xs font-black uppercase text-gray-400 mb-1">NAI API KEY</label>
+                            <div class="flex gap-2">
+                                <input type="password" id="naiApiKey" placeholder="pst-..." class="w-full hifi-input p-2 text-sm">
+                                <button onclick="handleNaiAuth()" id="btnNaiAuth" class="bg-white text-black font-black uppercase px-4 border-4 border-black hover:bg-[var(--hifi-yellow)] transition shrink-0 shadow-[4px_4px_0_#000] skew-x-[-5deg]">
+                                    <span class="inline-block skew-x-[5deg]">AUTH</span>
+                                </button>
+                            </div>
+                            <div id="naiAuthMsg" class="mt-2 text-xs font-black uppercase"></div>
+                        </div>
+
+                        <!-- Params -->
+                        <div class="grid grid-cols-2 gap-4 border-b-4 border-[#333] pb-5 mb-5">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-black uppercase text-[var(--hifi-yellow)] mb-1">MODEL (V4 ONLY)</label>
+                                <select id="naiModel" class="w-full hifi-input p-2 text-sm uppercase">
+                                    <option value="nai-diffusion-4-5-curated">V4.5 Curated</option>
+                                    <option value="nai-diffusion-4-5-full">V4.5 Full</option>
+                                    <option value="nai-diffusion-4-curated-preview">V4 Curated</option>
+                                    <option value="nai-diffusion-4-full">V4 Full</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-black uppercase text-gray-400 mb-1">RESOLUTION</label>
+                                <select id="naiRes" onchange="updateCanvasAspectRatio()" class="w-full hifi-input p-2 text-sm uppercase">
+                                    <option value="832,1216">832x1216 (Portrait)</option>
+                                    <option value="1216,832">1216x832 (Landscape)</option>
+                                    <option value="1024,1024">1024x1024 (Square)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-black uppercase text-gray-400 mb-1">SAMPLER</label>
+                                <select id="naiSampler" class="w-full hifi-input p-2 text-sm uppercase">
+                                    <option value="k_euler">Euler</option>
+                                    <option value="k_euler_ancestral">Euler A</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2">
+                                <label class="flex justify-between text-xs font-black uppercase text-gray-400 mb-1">
+                                    <span>STEPS</span> <span id="valSteps" class="text-white">28</span>
+                                </label>
+                                <input type="range" id="naiSteps" min="1" max="50" step="1" value="28" oninput="document.getElementById('valSteps').textContent=this.value" class="w-full accent-[var(--hifi-orange)]">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-xs font-black uppercase text-gray-400 mb-1">
+                                    <span>CFG</span> <span id="valCfg" class="text-white">5.5</span>
+                                </label>
+                                <input type="range" id="naiCfg" min="1" max="10" step="0.1" value="5.5" oninput="document.getElementById('valCfg').textContent=this.value" class="w-full accent-[var(--hifi-orange)]">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-xs font-black uppercase text-gray-400 mb-1">
+                                    <span>RESCALE</span> <span id="valRescale" class="text-white">0.8</span>
+                                </label>
+                                <input type="range" id="naiRescale" min="0" max="1" step="0.05" value="0.8" oninput="document.getElementById('valRescale').textContent=this.value" class="w-full accent-[var(--hifi-orange)]">
+                            </div>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <button id="btnGenerateNai" onclick="generateNaiImage()" class="w-full py-4 hifi-btn text-xl !bg-[var(--hifi-orange)] shadow-[6px_6px_0_#fff]">
+                            <span class="hifi-btn-inner">PAINT IT! (GENERATE)</span>
+                        </button>
+                        <div id="naiGenStatus" class="mt-3 text-center text-xs font-black uppercase text-gray-400 hidden">PROCESSING...</div>
+                    </div>
+                </div>
+
+                <!-- 右側 Prompt 與 視覺化 -->
+                <div class="xl:col-span-7 flex flex-col gap-6">
+                    <div class="hifi-panel p-6 flex-1 flex flex-col">
+                        <div class="flex justify-between items-center border-b-4 border-white pb-2 mb-4">
+                            <h2 class="text-xl font-black text-white uppercase tracking-widest">STRUCTURED PROMPT & VISUALIZER</h2>
+                            <label class="flex items-center gap-2 cursor-pointer bg-black px-3 py-1 border-2 border-[#555]">
+                                <input type="checkbox" id="naiEnableNpc" checked onchange="toggleNpcVis()" class="accent-blue-500 w-4 h-4">
+                                <span class="text-xs font-black uppercase">ENABLE CHAR B</span>
+                            </label>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+                            <!-- Prompts -->
+                            <div class="space-y-4 overflow-y-auto custom-scrollbar pr-2 max-h-[600px]">
+                                <!-- Base -->
+                                <div class="bg-black p-3 border-4 border-[#444]">
+                                    <label class="block text-[10px] text-green-400 font-black uppercase mb-1">BASE (SCENE/STYLE) POSITIVE</label>
+                                    <textarea id="naiBasePos" class="w-full p-2 hifi-input font-mono text-[10px] h-16 resize-none custom-scrollbar">fur dataset, kemono, 1boy, solo, conditional dnp, fan character, 0.5::vibrant colors, vivid colors, high contrast, rich saturation, sketch, ligne claire, linear hatching, flat color::, year 2025, year 2024, best quality, masterpiece, highres, amazing quality, absurdres, very aesthetic, extremely detailed, -1::ai-generated::, -1::ai-assisted::, </textarea>
+                                    <label class="block text-[10px] text-red-400 font-black uppercase mt-2 mb-1">BASE NEGATIVE</label>
+                                    <textarea id="naiBaseNeg" class="w-full p-2 hifi-input font-mono text-[10px] h-12 resize-none custom-scrollbar border-red-900 text-red-300 focus:border-red-500 focus:shadow-[4px_4px_0_red]">lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, sfw, {{{{worst quality, bad quality, lowres}}}},  jpeg artifacts, watermark, very displeasing, unfinished, scan artifacts, panels, lowres, bad anatomy, bad proportions, film grain, scan artifacts, chromatic aberration, screentone, logo, negative space, blank page, deformed, duplicate, signature, artist name, flat color, wide hips, big butt, shortstack, teapot, dwarfism, shiny skin, human, not furry, group, {heart symbol, feral, blush, blush lines, eyelashes, thick eyelashes, makeup, girly, trap}, 1girl, female, pussy, anus, breasts, </textarea>
+                                </div>
+                                <!-- PC -->
+                                <div class="bg-black p-3 border-4 border-[var(--hifi-yellow)] shadow-[4px_4px_0_#fff]">
+                                    <label class="block text-[10px] text-[var(--hifi-yellow)] font-black uppercase mb-1">CHARACTER A POSITIVE</label>
+                                    <textarea id="naiPcPos" class="w-full p-2 hifi-input font-mono text-[10px] h-16 resize-none custom-scrollbar focus:border-[var(--hifi-yellow)] focus:shadow-[4px_4px_0_var(--hifi-yellow)]">boy, male focus, furry male, kemono, anthro, blush, blush lines, male, young, young anthro, young male</textarea>
+                                    <label class="block text-[10px] text-red-400 font-black uppercase mt-2 mb-1">CHARACTER A NEGATIVE</label>
+                                    <textarea id="naiPcNeg" class="w-full p-2 hifi-input font-mono text-[10px] border-red-900 text-red-300 focus:border-red-500 focus:shadow-[4px_4px_0_red]">lowres, aliasing,</textarea>
+                                </div>
+                                <!-- NPC -->
+                                <div id="naiNpcBox" class="bg-black p-3 border-4 border-blue-500 shadow-[4px_4px_0_#fff]">
+                                    <label class="block text-[10px] text-blue-400 font-black uppercase mb-1">CHARACTER B POSITIVE</label>
+                                    <textarea id="naiNpcPos" class="w-full p-2 hifi-input font-mono text-[10px] h-16 resize-none custom-scrollbar focus:border-blue-500 focus:shadow-[4px_4px_0_blue]">boy, male focus, furry male, kemono, anthro, blush, blush lines, male, young, young anthro, young male</textarea>
+                                    <label class="block text-[10px] text-red-400 font-black uppercase mt-2 mb-1">CHARACTER B NEGATIVE</label>
+                                    <textarea id="naiNpcNeg" class="w-full p-2 hifi-input font-mono text-[10px] border-red-900 text-red-300 focus:border-red-500 focus:shadow-[4px_4px_0_red]">lowres, aliasing,</textarea>
+                                </div>
+                            </div>
+                            
+                            <!-- Visualizer & Result -->
+                            <div class="flex flex-col gap-4">
+                                <!-- Draggable Canvas -->
+                                <div class="w-full flex justify-center bg-black border-4 border-[#333] p-4 relative">
+                                    <div class="text-[10px] font-black uppercase text-gray-500 absolute top-1 left-2">LAYOUT VISUALIZER</div>
+                                    <div id="dragCanvas" class="coord-canvas w-full max-w-[250px]" style="aspect-ratio: 832/1216;">
+                                        <div class="grid-line-h" style="top: 33%"></div><div class="grid-line-h" style="top: 66%"></div>
+                                        <div class="grid-line-v" style="left: 33%"></div><div class="grid-line-v" style="left: 66%"></div>
+                                        <div id="markerA" class="coord-marker bg-[var(--hifi-yellow)]" style="left: 30%; top: 50%;">A</div>
+                                        <div id="markerB" class="coord-marker bg-blue-500 text-white" style="left: 70%; top: 50%;">B</div>
+                                    </div>
+                                </div>
+                                <!-- Image Result -->
+                                <div class="flex-1 min-h-[300px] border-4 border-white bg-black p-2 relative flex items-center justify-center shadow-[6px_6px_0_var(--hifi-orange)] group">
+                                    <span class="text-gray-600 font-black uppercase tracking-widest text-sm absolute z-0 pointer-events-none">OUTPUT RENDER</span>
+                                    <img id="naiResultImg" src="" class="max-w-full max-h-full object-contain relative z-10 hidden">
+                                    <a id="naiDownloadBtn" href="#" download="render.png" class="absolute top-2 right-2 bg-white text-black font-black p-2 border-2 border-black shadow-[2px_2px_0_#000] hidden z-20 hover:bg-[var(--hifi-yellow)] hover:scale-110 transition">💾</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="flex items-center gap-3">
+        <span id="toastMessage">MESSAGE</span>
+    </div>
+
+    <script>
+        // ==========================================
+        // 全域變數與初始化
+        // ==========================================
+        const PROXY_BASE_URL = 'https://nai-proxy-ten.vercel.app/api';
+        
+        let toastTimeout;
+        let coords = { pc: {x: 0.3, y: 0.5}, npc: {x: 0.7, y: 0.5} };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedNaiKey = localStorage.getItem('nai_api_key');
+            if (savedNaiKey) document.getElementById('naiApiKey').value = savedNaiKey;
+            
+            updateProviderUI();
+            setupDraggable('markerA', 'pc');
+            setupDraggable('markerB', 'npc');
+        });
+
+        // ==========================================
+        // UI & Utility 工具
+        // ==========================================
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = msg;
+            t.classList.add('show');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).value;
+            if(!text) return;
+            const ta = document.createElement('textarea'); ta.value = text;
+            document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); showToast("✓ 已複製到剪貼簿"); } catch(e){}
+            document.body.removeChild(ta);
+        }
+
+        function switchTab(tabId) {
+            ['configView', 'generatorView', 'imageToTagsView', 'toolboxView', 'naiView'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('tab-hidden');
+            });
+            const targetView = document.getElementById(tabId);
+            if (targetView) targetView.classList.remove('tab-hidden');
+
+            document.querySelectorAll('.hifi-tab').forEach(el => el.classList.remove('active'));
+            
+            const tabBtn = document.getElementById(`tab-${tabId.replace('View', '')}`);
+            if (tabBtn) tabBtn.classList.add('active');
+        }
+
+        function toggleSpeciesDropdown() {
+            document.getElementById('tbSpeciesSelect').disabled = !document.getElementById('tbChkSpecies').checked;
+        }
+
+        function sendToNai(sourceId, targetChar) {
+            const text = document.getElementById(sourceId).value.trim();
+            if(!text) return showToast("來源沒有內容！");
+            
+            const targetId = targetChar === 'pc' ? 'naiPcPos' : 'naiNpcPos';
+            const targetEl = document.getElementById(targetId);
+            targetEl.value = targetEl.value ? targetEl.value + ", " + text : text;
+            
+            if(targetChar === 'npc' && !document.getElementById('naiEnableNpc').checked) {
+                document.getElementById('naiEnableNpc').checked = true;
+                toggleNpcVis();
+            }
+            
+            showToast(`🚀 已加入 ${targetChar === 'pc' ? '角色A' : '角色B'} Prompt`);
+            switchTab('naiView');
+        }
+
+        function sendAnalyzedToNai(targetChar) {
+            const tags = ['out_base','out_scenario','out_clothing','out_behavior','out_perspective','out_held']
+                .map(id => document.getElementById(id).value.trim())
+                .filter(Boolean)
+                .join(', ');
+            if(!tags) return showToast("沒有解析出任何內容！");
+            
+            const targetId = targetChar === 'pc' ? 'naiPcPos' : 'naiNpcPos';
+            const targetEl = document.getElementById(targetId);
+            targetEl.value = targetEl.value ? targetEl.value + ", " + tags : tags;
+            
+            if(targetChar === 'npc' && !document.getElementById('naiEnableNpc').checked) {
+                document.getElementById('naiEnableNpc').checked = true;
+                toggleNpcVis();
+            }
+            
+            showToast(`🚀 已加入 ${targetChar === 'pc' ? '角色A' : '角色B'} Prompt`);
+            switchTab('naiView');
+        }
+
+        // ==========================================
+        // 配置 & API 通訊核心 (完全解除 API 金鑰強制檢查)
+        // ==========================================
+        let gcpCredsObj = null;
+
+        function updateProviderUI() {
+            const provider = document.querySelector('input[name="aiProvider"]:checked').value;
+            const aiFields = document.getElementById('cfgAiStudioFields');
+            const gcpFields = document.getElementById('cfgGcpFields');
+            const labels = document.querySelectorAll('.provider-label');
+            
+            if(provider === 'aistudio') {
+                aiFields.classList.remove('hidden'); gcpFields.classList.add('hidden');
+                labels[0].classList.replace('text-gray-500', 'text-[var(--hifi-yellow)]');
+                labels[1].classList.replace('text-[var(--hifi-yellow)]', 'text-gray-500');
+            } else {
+                aiFields.classList.add('hidden'); gcpFields.classList.remove('hidden');
+                labels[0].classList.replace('text-[var(--hifi-yellow)]', 'text-gray-500');
+                labels[1].classList.replace('text-gray-500', 'text-[var(--hifi-yellow)]');
+            }
+        }
+
+        function handleGcpUpload(e) {
+            const file = e.target.files[0]; if(!file) return;
+            const r = new FileReader();
+            r.onload = ev => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if(!data.project_id || !data.private_key || !data.client_email) throw new Error("缺少必要欄位");
+                    gcpCredsObj = data;
+                    document.getElementById('gcpStatusText').innerHTML = `<span class="text-green-500">✅ 載入成功: ${data.project_id}</span>`;
+                } catch(err) {
+                    alert("GCP JSON 解析失敗: " + err.message);
+                    gcpCredsObj = null;
+                    document.getElementById('gcpStatusText').innerHTML = `<span class="text-red-500">❌ 載入失敗</span>`;
+                }
+            };
+            r.readAsText(file);
+        }
+
+        async function fetchWithRetry(apiCall, maxRetries = 3) {
+            const delays = [1000, 3000, 6000];
+            for (let i = 0; i < maxRetries; i++) {
+                try { return await apiCall(); } 
+                catch (error) { if (i === maxRetries - 1) throw error; await new Promise(r => setTimeout(r, delays[i])); }
+            }
+        }
+
+        async function callGeminiAPI(prompt, schema = null, base64Image = null, mimeType = null) {
+            const provider = document.querySelector('input[name="aiProvider"]:checked').value;
+            const modelName = document.getElementById('cfgModel').value;
+            
+            const parts = [{ text: prompt }];
+            if(base64Image && mimeType) parts.push({ inlineData: { mimeType: mimeType, data: base64Image } });
+
+            const payload = {
+                contents: [{ role: "user", parts: parts }],
+                generationConfig: { temperature: 0.8 }
+            };
+
+            if(schema) {
+                payload.generationConfig.responseMimeType = "application/json";
+                payload.generationConfig.responseSchema = schema;
+            }
+
+            let endpoint, headers = { 'Content-Type': 'application/json' }, bodyData;
+
+            if (provider === 'gcp') {
+                if(!gcpCredsObj) throw new Error("請先上傳 GCP 服務帳號 JSON");
+                const region = document.getElementById('cfgGcpRegion').value;
+                const domain = region === 'global' ? 'aiplatform.googleapis.com' : `${region}-aiplatform.googleapis.com`;
+                const targetUrl = `https://${domain}/v1/projects/${gcpCredsObj.project_id}/locations/${region}/publishers/google/models/${modelName}:generateContent`;
+                
+                endpoint = `${PROXY_BASE_URL}/gemini`;
+                bodyData = {
+                    credentials: { ...gcpCredsObj },
+                    geminiPayload: payload,
+                    targetUrl: targetUrl, region: region, model: modelName
+                };
+            } else {
+                const userKey = document.getElementById('cfgAiKey').value.trim();
+                const activeKey = userKey || (typeof apiKey !== 'undefined' ? apiKey : "");
+                endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
+                bodyData = payload;
+            }
+
+            return fetchWithRetry(async () => {
+                const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(bodyData) });
+                if(!res.ok) throw new Error(`API 錯誤: ${await res.text()}`);
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if(!text) throw new Error("無效的回傳格式");
+                
+                if(schema) {
+                    let clean = text.trim();
+                    const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+                    if(s!==-1 && e!==-1) clean = clean.substring(s, e+1);
+                    return JSON.parse(clean);
+                }
+                return text;
+            });
+        }
+
+        // ==========================================
+        // Tab 2: 隨機 Prompt 生成
+        // ==========================================
+        async function generateRandomPrompt() {
+            const base = document.getElementById('basePromptInput').value.trim();
+            const chkScenario = document.getElementById('chkScenario').checked;
+            const chkClothing = document.getElementById('chkClothing').checked;
+            const chkBehavior = document.getElementById('chkBehavior').checked;
+            const chkPerspective = document.getElementById('chkPerspective').checked;
+            const chkHeldItem = document.getElementById('chkHeldItem').checked;
+
+            if (!chkScenario && !chkClothing && !chkBehavior && !chkPerspective && !chkHeldItem) {
+                return;
+            }
+
+            const btn = document.getElementById('btnGeneratePrompt');
+            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "發揮創意中 (PROCESSING...)";
+            document.getElementById('generatedPromptOutput').value = "AI 正在從零開始為您構思場景細節，請稍候...";
+
+            let reqText = [];
+            if (chkScenario) reqText.push("- 情景 (scenario)：包含背景與地點佈置的物件。");
+            if (chkClothing) reqText.push("- 服裝 (clothing)：包含配件與明確的時尚風格。");
+            if (chkBehavior) reqText.push("- 行為 (behavior)：包含整體姿勢、手部動作與臉部表情。");
+            if (chkPerspective) reqText.push("- 透視 (perspective)：包含拍攝距離與視線角度。");
+            if (chkHeldItem) reqText.push("- 互動的物件 (interactive_object)：包含拿著、抱著、撫摸或互動的物品 (如 holding_sword, hugging_pillow, petting_cat)。");
+
+            const aiPrompt = `你是一個充滿創意且熟知各類動漫、遊戲與獸人(Furry)文化的 e621 標籤生成專家。
+使用者輸入的基礎角色特徵為: "${base || '(無特定角色)'}"
+
+【核心思考準則】
+你必須放棄「If you already have all the information you need」的思想，因此你必須加倍思考，絕不敷衍！
+
+請先判斷該角色特徵是否為「版權角色 (Copyright Character) / 已知 IP 角色」：
+1. 如果是版權角色：請以該角色自身作品的世界觀、背景設定和個性為前提，提供完全符合該角色人設且滿足下方勾選內容的 Prompt。
+2. 如果不是版權角色 (或只是通用特徵/原創設定)：請「加倍思考」，為其設計一個完善的世界觀、豐富的背景設定與鮮明的個性。在深思熟慮後，給出極具表現力且滿足下方勾選內容的 Prompt。
+
+根據以下勾選項目的具體要求，生成相應的 e621 標籤：
+${reqText.join('\n')}
+
+回傳 JSON 格式 (scenario, clothing, behavior, perspective, interactive_object) (未勾選或不適用的留空字串)。標籤必須是 e621 適用的純小寫英文，單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只輸出標籤，不要輸出多餘的說明。`;
+
+            const schema = { 
+                type: "OBJECT", 
+                properties: { 
+                    scenario: {type: "STRING"}, 
+                    clothing: {type: "STRING"}, 
+                    behavior: {type: "STRING"}, 
+                    perspective: {type: "STRING"}, 
+                    interactive_object: {type: "STRING"} 
+                } 
+            };
+
+            try {
+                const p = await callGeminiAPI(aiPrompt, schema);
+                
+                let finalTags = [];
+                if (base) finalTags.push(base);
+                if (p.scenario) finalTags.push(p.scenario);
+                if (p.clothing) finalTags.push(p.clothing);
+                if (p.behavior) finalTags.push(p.behavior);
+                if (p.perspective) finalTags.push(p.perspective);
+                if (p.interactive_object) finalTags.push(p.interactive_object);
+
+                document.getElementById('generatedPromptOutput').value = finalTags.join(", ");
+            } catch(e) { 
+                document.getElementById('generatedPromptOutput').value = "生成失敗: " + e.message; 
+            } finally { 
+                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "啟動 AI 引擎 (GENERATE)"; 
+            }
+        }
+
+        // ==========================================
+        // Tab 3: 圖像反推
+        // ==========================================
+        let scanImgBase64, scanImgMime;
+        function handleImageUpload(e) {
+            const file = e.target.files[0]; if(!file) return;
+            scanImgMime = file.type;
+            const r = new FileReader();
+            r.onload = ev => {
+                document.getElementById('imagePreview').src = ev.target.result;
+                document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                document.getElementById('uploadLabel').classList.add('hidden');
+                scanImgBase64 = ev.target.result.split(',')[1];
+                document.getElementById('btnAnalyzeImage').disabled = false;
+                document.getElementById('analyzeStatus').textContent = "IMAGE LOADED. READY.";
+            };
+            r.readAsDataURL(file);
+        }
+
+        async function analyzeImage() {
+            if(!scanImgBase64) return;
+            const btn = document.getElementById('btnAnalyzeImage'); const stat = document.getElementById('analyzeStatus');
+            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "掃描中 (SCANNING...)";
+            document.getElementById('imagePreviewContainer').classList.add('is-scanning');
+            
+            ['base','scenario','clothing','behavior','perspective','held'].forEach(id => document.getElementById('out_'+id).value="");
+
+            const aiPrompt = `仔細觀察這張圖片，這可能是一張獸人(Furry)或動漫相關的創作。
+記住，你必須放棄「If you already have all the information you need」的思想，你必須加倍思考，盡可能深挖每一個細節，給出極大量且精準的 e621 Tags！
+如果有版權角色(Copyright Character)，務必在 base_character 區塊加入這些角色名稱與作品系列的 Tags 還有對應 these 角色的外貌特徵 Tags，如果有原創角色(Original Character)，請不要在 base_character 輸入這些原創角色的角色名稱與作品系列的Tags，而是直接輸出符合圖片的這些角色的外貌特徵 Tags。
+【重要】如果圖片中有多個角色，必須在 base_character 區塊中分別輸出多個角色的特徵，順序是先輸出人物數量(solo,duo,trio,group)，然後輸出角色1的全部外貌特徵，再輸出角色2的全部外貌特徵，以此類推。
+所有 tag 必須為小寫英文，多個單字請用底線 '_' 連接，並以「逗號加空格」(", ")分隔。`;
+
+            const schema = { 
+                type:"OBJECT", 
+                properties:{
+                    base_character:{type:"STRING"},
+                    scenario:{type:"STRING"},
+                    clothing:{type:"STRING"},
+                    behavior:{type:"STRING"},
+                    perspective:{type:"STRING"},
+                    held_item:{type:"STRING"}
+                } 
+            };
+
+            try {
+                const p = await callGeminiAPI(aiPrompt, schema, scanImgBase64, scanImgMime);
+                document.getElementById('out_base').value = p.base_character || "";
+                document.getElementById('out_scenario').value = p.scenario || "";
+                document.getElementById('out_clothing').value = p.clothing || "";
+                document.getElementById('out_behavior').value = p.behavior || "";
+                document.getElementById('out_perspective').value = p.perspective || "";
+                document.getElementById('out_held').value = p.held_item || "";
+                stat.innerHTML = "<span class='text-green-500'>✓ ANALYSIS COMPLETE</span>";
+            } catch(e) {
+                stat.innerHTML = `<span class='text-red-500'>❌ FAILED: ${e.message}</span>`;
+            } finally {
+                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "開始掃描 (ANALYZE)";
+                document.getElementById('imagePreviewContainer').classList.remove('is-scanning');
+            }
+        }
+        
+        function copyAllAnalyzedTags() {
+            const t = ['out_base','out_scenario','out_clothing','out_behavior','out_perspective','out_held']
+                .map(id => document.getElementById(id).value.trim()).filter(Boolean).join(', ');
+            if(t) {
+                const ta = document.createElement('textarea'); ta.value = t;
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                showToast("✓ 已複製全部陣列");
+            }
+        }
+
+        // ==========================================
+        // Tab 4 (新增功能): 從 E621 / Danbooru 導入標籤
+        // ==========================================
+        async function importBooruTags() {
+            const urlInput = document.getElementById('tbImportUrl').value.trim();
+            if (!urlInput) {
+                showToast("⚠️ 請先輸入網址！");
+                return;
+            }
+            
+            const btn = document.getElementById('btnImportBooru');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.querySelector('.hifi-btn-inner').textContent = "下載中 (FETCHING...)";
+
+            try {
+                let isE621 = urlInput.includes('e621.net') || urlInput.includes('e926.net');
+                let isDanbooru = urlInput.includes('danbooru.donmai.us');
+                
+                let postId = "";
+                let siteDomain = "";
+                
+                // 解析 Post ID
+                const postPattern = /\/posts\/(\d+)/;
+                const match = urlInput.match(postPattern);
+                
+                if (match) {
+                    postId = match[1];
+                } else {
+                    const numericMatch = urlInput.match(/^\d+$/);
+                    if (numericMatch) {
+                        postId = numericMatch[0];
+                        isE621 = true; // 預設使用 e621
+                    } else {
+                        throw new Error("網址解析失敗，必須包含 /posts/ID");
+                    }
+                }
+
+                if (isE621) {
+                    siteDomain = urlInput.includes('e926.net') ? 'e926.net' : 'e621.net';
+                } else if (isDanbooru) {
+                    siteDomain = 'danbooru.donmai.us';
+                } else {
+                    siteDomain = 'e621.net';
+                    isE621 = true;
+                }
+
+                // 加上時間戳記防止快取快取問題
+                const jsonUrl = `https://${siteDomain}/posts/${postId}.json?_ts=${Date.now()}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(jsonUrl)}`;
+                
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error("代理連線失敗");
+                
+                const data = await response.json();
+                if (!data.contents) throw new Error("取得資料為空，可能為私有或不存在的 Post");
+                
+                const postData = JSON.parse(data.contents);
+                let tagsList = [];
+
+                if (isE621) {
+                    const postObj = postData.post ? postData.post : postData;
+                    if (postObj && postObj.tags) {
+                        const tagsCategory = postObj.tags;
+                        // 合併順序：繪師, 角色, 物種, 一般標籤, 背景/世界觀, 詮釋標籤
+                        const categoriesOrder = ['artist', 'character', 'species', 'general', 'lore', 'meta'];
+                        categoriesOrder.forEach(cat => {
+                            if (Array.isArray(tagsCategory[cat])) {
+                                tagsList = tagsList.concat(tagsCategory[cat]);
+                            }
+                        });
+                    } else {
+                        throw new Error("無法解析 e621 標籤分類");
+                    }
+                } else if (isDanbooru) {
+                    const tagString = postData.tag_string;
+                    if (tagString) {
+                        tagsList = tagString.split(/\s+/).filter(Boolean);
+                    } else {
+                        throw new Error("無法解析 Danbooru 的 tag_string");
+                    }
+                }
+
+                if (tagsList.length === 0) {
+                    throw new Error("此 ID 貼文中未發現任何標籤");
+                }
+
+                // 將標籤轉換為逗號分隔填入 tbRawTags
+                const joinedTags = tagsList.join(', ');
+                document.getElementById('tbRawTags').value = joinedTags;
+                showToast(`✓ 成功自 ${siteDomain} 載入 ${tagsList.length} 個標籤！`);
+            } catch (err) {
+                console.error(err);
+                showToast(`❌ 導入失敗: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // ==========================================
+        // Tab 4: 標籤優化
+        // ==========================================
+        async function optimizeToolboxTags() {
+            const rawTags = document.getElementById('tbRawTags').value.trim();
+            if(!rawTags) return showToast("請輸入原始 Tags");
+            
+            const btn = document.getElementById('btnOptimize'); btn.disabled = true;
+            btn.querySelector('.hifi-btn-inner').textContent = "重組中 (RESTRUCTURING...)";
+
+            const refineText = document.getElementById('tbRefineText').value;
+            const chkOrder = document.getElementById('tbChkOrder').checked;
+            const chkComma = document.getElementById('tbChkComma').checked;
+            const chkText = document.getElementById('tbChkText').checked;
+            const chkSimplify = document.getElementById('tbChkSimplify').checked;
+            const chkColor = document.getElementById('tbChkColor').checked;
+            const chkSpecies = document.getElementById('tbChkSpecies').checked;
+            const targetSpecies = document.getElementById('tbSpeciesSelect').value;
+
+            let aiPrompt = `身為專業的 e621 Tag 優化工程師，請嚴格執行以下任務：\n\n【原始輸入】\nTags: "${rawTags}"\n`;
+            if (refineText) aiPrompt += `自然語言修改要求: "${refineText}"\n`;
+
+            aiPrompt += `\n【優化規則 (需同時滿足)】\n1. 整合：結合原始 Tags 與修改要求，輸出包含要求內容且優化後的 e621 tags 組合。\n`;
+            if (chkOrder) aiPrompt += `2. 排序：嚴格按照「角色名, 作品名, 人數, 角色外貌, 服裝, 表情, 動作, 背景, 物件, 渲染, 其他」的順序排列。\n`;
+            if (chkText) aiPrompt += `3. 刪除文字：移除如 english_text, artist_name, patreon_logo, signature, watermark 等文字相關標籤。\n`;
+            if (chkSimplify) aiPrompt += `4. 精簡標籤：在有類似詞組的情況下（例如 clothing 和 school_uniform），保留更具體詳細的詞組（如 school_uniform），並刪除廣泛不具體的詞組（如 clothing, uniform, topwear, bottomwear, shirt, pants 等），除非它是特定顏色或細節（例如 white_shirt 或 rolled_up_sleeves）。\n`;
+            if (chkColor) aiPrompt += `5. 顏色調整：如果有多個帶顏色的 Tags (例如 grey_pants, white_shirt, black_fur)，請打亂這些顏色重新分配 (例如變成 black_pants, grey_shirt, white_fur)；如果沒有任何帶顏色的 Tags，請為適合的部位隨機添加顏色，配色須符合色彩設計原理，且不超過三種基礎色調。\n`;
+            if (chkSpecies) aiPrompt += `6. 替換物種：請將角色原本的物種相關標籤，全部刪除並徹底替換為「${targetSpecies}」及其對應的身體特徵。\n`;
+
+            const separatorStr = chkComma ? '逗號加空格 (", ")' : '空格 (" ")';
+            aiPrompt += `\n【輸出格式】\n處理完成的字串，請使用 ${separatorStr} 隔開。所有單詞為小寫，多字用底線連接。以 JSON 回傳，格式為 {"optimized_tags": "處理結果"}。`;
+
+            try {
+                const res = await callGeminiAPI(aiPrompt, { type: "OBJECT", properties: { optimized_tags: { type: "STRING" } } });
+                document.getElementById('tbOptimizedOutput').value = res.optimized_tags;
+            } catch(e) { showToast("優化失敗: " + e.message); }
+            finally { btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "執行優化 (EXECUTE)"; }
+        }
+
+        // ==========================================
+        // Tab 5: NovelAI 控制
+        // ==========================================
+        async function handleNaiAuth() {
+            const key = document.getElementById('naiApiKey').value.trim();
+            const msgEl = document.getElementById('naiAuthMsg');
+            if(!key) return msgEl.innerHTML = '<span class="text-red-500">PLEASE ENTER API KEY</span>';
+            
+            document.getElementById('btnNaiAuth').disabled = true;
+            msgEl.textContent = 'AUTHENTICATING...';
+
+            try {
+                const res = await fetch(`${PROXY_BASE_URL}/user/information`, {
+                    headers: { 'x-target-service': 'user', 'Authorization': `Bearer ${key}` }
+                });
+                if(!res.ok) throw new Error("認證失敗");
+                const data = await res.json();
+                localStorage.setItem('nai_api_key', key);
+                msgEl.innerHTML = `<span class="text-green-500">✓ 成功 (TIER: ${data.subscription?.tier || 'UNKNOWN'})</span>`;
+            } catch(e) {
+                msgEl.innerHTML = `<span class="text-red-500">❌ ${e.message}</span>`;
+            } finally {
+                document.getElementById('btnNaiAuth').disabled = false;
+            }
+        }
+
+        function toggleNpcVis() {
+            const enabled = document.getElementById('naiEnableNpc').checked;
+            document.getElementById('naiNpcBox').classList.toggle('opacity-50', !enabled);
+            document.getElementById('naiNpcBox').classList.toggle('pointer-events-none', !enabled);
+            document.getElementById('markerB').style.display = enabled ? 'flex' : 'none';
+        }
+
+        function updateCanvasAspectRatio() {
+            const res = document.getElementById('naiRes').value.split(',');
+            document.getElementById('dragCanvas').style.aspectRatio = `${res[0]}/${res[1]}`;
+        }
+
+        // 座標拖曳邏輯
+        function setupDraggable(elementId, type) {
+            const el = document.getElementById(elementId);
+            const container = document.getElementById('dragCanvas');
+            let isDragging = false;
+
+            const onDragStart = (e) => { isDragging = true; e.preventDefault(); };
+            const onDragEnd = () => { isDragging = false; };
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                const rect = container.getBoundingClientRect();
+                let clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+                
+                let x = (clientX - rect.left) / rect.width;
+                let y = (clientY - rect.top) / rect.height;
+                
+                x = Math.max(0, Math.min(1, x));
+                y = Math.max(0, Math.min(1, y));
+                
+                coords[type] = {x, y};
+                el.style.left = `${x * 100}%`;
+                el.style.top = `${y * 100}%`;
+            };
+
+            el.addEventListener('mousedown', onDragStart);
+            el.addEventListener('touchstart', onDragStart, {passive: false});
+            window.addEventListener('mousemove', onDrag);
+            window.addEventListener('touchmove', onDrag, {passive: false});
+            window.addEventListener('mouseup', onDragEnd);
+            window.addEventListener('touchend', onDragEnd);
+        }
+
+        async function generateNaiImage() {
+            const key = document.getElementById('naiApiKey').value.trim();
+            if(!key) return showToast("請先輸入並認證 NAI API Key");
+            if(typeof JSZip === 'undefined') return showToast("JSZip 庫尚未載入");
+
+            const btn = document.getElementById('btnGenerateNai');
+            const stat = document.getElementById('naiGenStatus');
+            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "RENDERING...";
+            stat.classList.remove('hidden'); stat.textContent = "BUILDING STRUCTURED PROMPT AND FETCHING VERCEL PROXY...";
+            
+            try {
+                const [width, height] = document.getElementById('naiRes').value.split(',').map(Number);
+                const isNpcEnabled = document.getElementById('naiEnableNpc').checked;
+                
+                let p_char_captions = [];
+                let n_char_captions = [];
+
+                // Char A (PC)
+                let pcPos = document.getElementById('naiPcPos').value.trim();
+                if(pcPos) {
+                    p_char_captions.push({ char_caption: pcPos, centers: [coords.pc] });
+                    n_char_captions.push({ char_caption: document.getElementById('naiPcNeg').value.trim(), centers: [coords.pc] });
+                }
+
+                // Char B (NPC)
+                if(isNpcEnabled) {
+                    let npcPos = document.getElementById('naiNpcPos').value.trim();
+                    if(npcPos) {
+                        p_char_captions.push({ char_caption: npcPos, centers: [coords.npc] });
+                        n_char_captions.push({ char_caption: document.getElementById('naiNpcNeg').value.trim(), centers: [coords.npc] });
+                    }
+                }
+
+                const params = {
+                    width, height, scale: parseFloat(document.getElementById('naiCfg').value),
+                    sampler: document.getElementById('naiSampler').value, 
+                    steps: parseInt(document.getElementById('naiSteps').value, 10),
+                    cfg_rescale: parseFloat(document.getElementById('naiRescale').value),
+                    seed: Math.floor(Math.random() * 4294967295), n_samples: 1,
+                    noise_schedule: 'karras', qualityToggle: true, ucPreset: 0,
+                    v4_prompt: {
+                        caption: { base_caption: document.getElementById('naiBasePos').value, char_captions: p_char_captions },
+                        use_coords: true, use_order: true, legacy_uc: false
+                    },
+                    v4_negative_prompt: {
+                        caption: { base_caption: document.getElementById('naiBaseNeg').value, char_captions: n_char_captions },
+                        use_coords: true, use_order: false, legacy_uc: false
+                    }
+                };
+
+                const payload = { 
+                    input: document.getElementById('naiBasePos').value, // Fallback
+                    model: document.getElementById('naiModel').value, 
+                    action: 'generate', parameters: params 
+                };
+
+                stat.textContent = "GENERATING IN THE CLOUD...";
+                const res = await fetch(`${PROXY_BASE_URL}/ai/generate-image`, {
+                    method: 'POST',
+                    headers: { 'x-target-service': 'image', 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if(!res.ok) throw new Error(await res.text());
+
+                stat.textContent = "EXTRACTING ZIP...";
+                const buffer = await res.arrayBuffer();
+                const zip = new JSZip();
+                const unzipped = await zip.loadAsync(buffer);
+                
+                let b64Str = "";
+                for (const [name, file] of Object.entries(unzipped.files)) {
+                    if(name.endsWith('.png')) {
+                        const blob = await file.async('blob');
+                        b64Str = await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result); reader.readAsDataURL(blob); });
+                        break;
+                    }
+                }
+                
+                if(!b64Str) throw new Error("No image found in zip");
+                
+                document.getElementById('naiResultImg').src = b64Str;
+                document.getElementById('naiResultImg').classList.remove('hidden');
+                const dlBtn = document.getElementById('naiDownloadBtn');
+                dlBtn.href = b64Str; dlBtn.classList.remove('hidden');
+                
+            } catch(e) {
+                showToast("NOVELAI 失敗: " + e.message);
+                console.error(e);
+            } finally {
+                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "PAINT IT! (GENERATE)";
+                stat.classList.add('hidden');
+            }
+        }
+
+    </script>
+</body>
+</html>
