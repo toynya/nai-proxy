@@ -175,6 +175,16 @@
             z-index: 9999;
         }
         #toast.show { transform: translateY(0) skewX(-5deg); }
+
+        /* Fursona Dropdown Styles */
+        .fur-dropdown-content { max-height: 250px; overflow-y: auto; }
+        .fur-tag { display: inline-flex; align-items: center; gap: 4px; background: #fff; color: #000; font-weight: 900; padding: 2px 8px; border: 2px solid #000; font-size: 0.75rem; text-transform: uppercase; }
+        .fur-tag button { color: #ef4444; font-weight: 900; }
+        .fur-tag button:hover { color: #000; }
+        .fur-dropdown-item { padding: 8px 12px; font-weight: 700; cursor: pointer; border-bottom: 2px solid #333; transition: all 0.1s; }
+        .fur-dropdown-item:hover { background: var(--hifi-yellow); color: #000; }
+        .fur-dropdown-item input:checked + span { color: var(--hifi-orange); font-weight: 900; }
+        .fur-dropdown-item:hover input:checked + span { color: #000; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
@@ -190,7 +200,7 @@
                     </h1>
                 </div>
                 <div class="text-sm font-black bg-[var(--hifi-yellow)] text-black px-4 py-2 border-4 border-black shadow-[4px_4px_0_#fff] skew-x-[-5deg]">
-                    <span class="inline-block skew-x-[5deg]">VER. NovelAI</span>
+                    <span class="inline-block skew-x-[5deg]">VER. NovelAI + FURSONA</span>
                 </div>
             </div>
 
@@ -205,7 +215,7 @@
     </header>
 
     <!-- 主內容區塊 -->
-    <div class="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-8">
+    <div class="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-8 relative z-10">
 
         <!-- ==================== 分頁 1: 終端配置 (API) ==================== -->
         <main id="configView" class="max-w-4xl mx-auto w-full">
@@ -254,7 +264,7 @@
                             <label class="block text-sm font-black uppercase text-[var(--hifi-orange)] mb-2">GCP JSON 服務帳號金鑰</label>
                             <label class="flex flex-col items-center justify-center w-full h-32 border-4 border-dashed border-[#555] hover:border-[var(--hifi-orange)] hover:bg-[#1a1a1a] transition cursor-pointer bg-black">
                                 <span id="gcpStatusText" class="text-gray-400 font-black text-sm uppercase flex flex-col items-center gap-2">
-                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    <span>📂</span>
                                     點擊上傳 JSON 文件
                                 </span>
                                 <input type="file" id="cfgGcpFile" accept=".json" class="hidden" onchange="handleGcpUpload(event)">
@@ -276,58 +286,130 @@
         </main>
 
         <!-- ==================== 分頁 2: 隨機 Prompt 生成器 ==================== -->
-        <main id="generatorView" class="tab-hidden max-w-4xl mx-auto w-full">
+        <main id="generatorView" class="tab-hidden max-w-5xl mx-auto w-full">
             <div class="hifi-panel p-6 md:p-10">
                 <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_var(--hifi-yellow)]">
-                    [ MODULE.GEN ] AI 隨機靈感發想
+                    [ MODULE.GEN ] AI 隨機靈感發想與獸設注入
                 </h2>
-                <p class="text-sm text-gray-300 mb-8 font-bold leading-relaxed">輸入角色特徵，AI 將根據版權與設定深度發想，並將結果補充至後方。</p>
+                <p class="text-sm text-gray-300 mb-8 font-bold leading-relaxed border-l-4 border-[var(--hifi-yellow)] pl-3">
+                    結合獸設生成邏輯！AI 將分析輸入特徵，若特徵已包含指定維度則自動略過不覆寫。同時將生成的專屬角色特徵**無縫填回**下方的 Prompt 框中。
+                </p>
                 
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">角色基本特徵 Prompt</label>
-                        <textarea id="basePromptInput" rows="2" class="w-full p-4 hifi-input resize-none font-mono" placeholder="例如: bowser_jr. super_mario anthro turtle..."></textarea>
-                    </div>
-                    
-                    <div class="bg-black p-6 border-4 border-[#333]">
-                        <label class="block text-sm font-black text-white mb-4 uppercase">勾選發想維度：</label>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="chkScenario" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
-                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">情景與佈置</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="chkClothing" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
-                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">服裝與風格</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="chkBehavior" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
-                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">行為與表情</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" id="chkPerspective" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
-                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">透視與鏡頭</span>
-                            </label>
-                            <label class="flex items-center gap-3 cursor-pointer group sm:col-span-2">
-                                <input type="checkbox" id="chkHeldItem" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
-                                <span class="font-black uppercase text-gray-400 group-hover:text-white transition">互動的物件</span>
-                            </label>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
+                    <!-- 左側：基礎輸入與擴寫選項 -->
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-black text-[var(--hifi-yellow)] mb-2 uppercase">角色基本特徵 Prompt</label>
+                            <textarea id="basePromptInput" rows="4" class="w-full p-4 hifi-input resize-none font-mono focus:border-[var(--hifi-orange)] focus:shadow-[4px_4px_0_var(--hifi-orange)]" placeholder="例如: bowser_jr. super_mario anthro turtle... (留空亦可，AI將為您全自動發想)"></textarea>
+                            <p class="text-xs text-gray-400 font-bold mt-2 uppercase">＊生成後的角色專屬特徵將會覆蓋/融合回此框中</p>
                         </div>
-                    </div>
-                    
-                    <button id="btnGeneratePrompt" onclick="generateRandomPrompt()" class="w-full py-4 hifi-btn text-xl">
-                        <span class="hifi-btn-inner">啟動 AI 引擎 (GENERATE)</span>
-                    </button>
-                    
-                    <div class="mt-6 border-t-4 border-[#333] pt-6">
-                        <label class="block text-sm font-black text-white mb-2 uppercase">生成結果 (完整串接)</label>
-                        <textarea id="generatedPromptOutput" rows="5" readonly class="w-full p-4 hifi-input resize-none font-mono text-[var(--hifi-yellow)]"></textarea>
                         
-                        <div class="flex flex-wrap gap-3 mt-4">
-                            <button onclick="copyToClipboard('generatedPromptOutput')" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製文字</span></button>
-                            <button onclick="sendToNai('generatedPromptOutput', 'pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
-                            <button onclick="sendToNai('generatedPromptOutput', 'npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
+                        <div class="bg-black p-4 border-4 border-[#333]">
+                            <label class="block text-sm font-black text-white mb-4 uppercase border-b-2 border-[#555] pb-2">勾選智能發想維度：</label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" id="chkScenario" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white transition">情景與佈置</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" id="chkClothing" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white transition">服裝與風格</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" id="chkBehavior" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white transition">行為與表情</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" id="chkPerspective" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white transition">透視與鏡頭</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer group sm:col-span-2">
+                                    <input type="checkbox" id="chkHeldItem" checked class="w-5 h-5 accent-[var(--hifi-orange)]"> 
+                                    <span class="font-black uppercase text-gray-400 group-hover:text-white transition">互動的物件</span>
+                                </label>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- 右側：獸設與風格控制台 -->
+                    <div class="space-y-4 bg-[#111] border-4 border-[var(--hifi-yellow)] p-4 shadow-[6px_6px_0_#fff]">
+                        <label class="block text-base font-black text-white uppercase border-b-4 border-[var(--hifi-yellow)] pb-2 flex items-center gap-2">
+                            <span>🧬</span> FURSONA CONFIG / 獸設控制台
+                        </label>
+
+                        <!-- Species -->
+                        <div class="relative" id="fur-species-container">
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-black text-gray-400 uppercase">物種 (最多3種)</label>
+                                <button onclick="randomizeFursona('species')" class="text-xs font-black text-[var(--hifi-orange)] hover:text-white uppercase transition">🎲 隨機抽取</button>
+                            </div>
+                            <div onclick="toggleFurDropdown('species')" class="w-full hifi-input p-2 cursor-pointer min-h-[44px] flex flex-wrap gap-2 items-center bg-black">
+                                <span id="fur-species-placeholder" class="text-gray-600 text-xs uppercase font-black">不指定 (將隨機抽取)...</span>
+                                <div id="fur-species-tags" class="flex flex-wrap gap-1 pointer-events-none"></div>
+                            </div>
+                            <div id="fur-species-dropdown" class="hidden absolute z-50 w-full mt-1 bg-black border-4 border-white shadow-[4px_4px_0_var(--hifi-orange)] fur-dropdown-content"></div>
+                        </div>
+
+                        <!-- Theme -->
+                        <div class="relative" id="fur-theme-container">
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-black text-gray-400 uppercase">主題畫面 (最多3種)</label>
+                                <button onclick="randomizeFursona('theme')" class="text-xs font-black text-[var(--hifi-orange)] hover:text-white uppercase transition">🎲 隨機抽取</button>
+                            </div>
+                            <div onclick="toggleFurDropdown('theme')" class="w-full hifi-input p-2 cursor-pointer min-h-[44px] flex flex-wrap gap-2 items-center bg-black">
+                                <span id="fur-theme-placeholder" class="text-gray-600 text-xs uppercase font-black">不指定 (將隨機抽取)...</span>
+                                <div id="fur-theme-tags" class="flex flex-wrap gap-1 pointer-events-none"></div>
+                            </div>
+                            <div id="fur-theme-dropdown" class="hidden absolute z-50 w-full mt-1 bg-black border-4 border-white shadow-[4px_4px_0_var(--hifi-orange)] fur-dropdown-content"></div>
+                        </div>
+
+                        <!-- Fashion -->
+                        <div class="relative" id="fur-fashion-container">
+                            <div class="flex justify-between mb-1">
+                                <label class="text-xs font-black text-gray-400 uppercase">時尚風格 (最多3種)</label>
+                                <button onclick="randomizeFursona('fashion')" class="text-xs font-black text-[var(--hifi-orange)] hover:text-white uppercase transition">🎲 隨機抽取</button>
+                            </div>
+                            <div onclick="toggleFurDropdown('fashion')" class="w-full hifi-input p-2 cursor-pointer min-h-[44px] flex flex-wrap gap-2 items-center bg-black">
+                                <span id="fur-fashion-placeholder" class="text-gray-600 text-xs uppercase font-black">不指定 (將隨機抽取)...</span>
+                                <div id="fur-fashion-tags" class="flex flex-wrap gap-1 pointer-events-none"></div>
+                            </div>
+                            <div id="fur-fashion-dropdown" class="hidden absolute z-50 w-full mt-1 bg-black border-4 border-white shadow-[4px_4px_0_var(--hifi-orange)] fur-dropdown-content"></div>
+                        </div>
+
+                        <!-- Custom Directives -->
+                        <div>
+                            <label class="block text-xs font-black text-gray-400 uppercase mb-1">附加指引 (自然語言描述)</label>
+                            <textarea id="furCustomPrompt" rows="2" placeholder="例如：手裡拿著冰咖啡，有點慵懶..." class="w-full p-2 hifi-input text-sm resize-none"></textarea>
+                        </div>
+
+                        <!-- Mode Toggle -->
+                        <div class="flex items-center justify-between bg-black border-4 border-[#444] p-3 transition-colors" id="furModePanel">
+                            <div class="flex flex-col">
+                                <label class="text-sm font-black text-white uppercase tracking-widest">特殊燈泡模式</label>
+                                <span class="text-[10px] font-black uppercase text-gray-500" id="furModeDesc">SAFE (全年齡) / KEMOSHOTA</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="furNsfwToggle" onchange="toggleFurModeUI()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none border-2 border-black peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-black after:border-2 after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--hifi-red)] shadow-[2px_2px_0_#fff]"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="btnGeneratePrompt" onclick="generateIntegratedPrompt()" class="w-full py-4 hifi-btn text-xl shadow-[8px_8px_0_var(--hifi-yellow)]">
+                    <span class="hifi-btn-inner">啟動 AI 引擎 (INTEGRATED GENERATION)</span>
+                </button>
+                
+                <div class="mt-6 border-t-4 border-[#333] pt-6">
+                    <label class="block text-sm font-black text-white mb-2 uppercase flex items-center gap-2">
+                        <span>📋</span> 生成結果 (自動過濾重複維度串接)
+                    </label>
+                    <textarea id="generatedPromptOutput" rows="5" readonly class="w-full p-4 hifi-input resize-none font-mono text-[var(--hifi-yellow)] focus:border-[var(--hifi-yellow)]"></textarea>
+                    
+                    <div class="flex flex-wrap gap-3 mt-4">
+                        <button onclick="copyToClipboard('generatedPromptOutput')" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製文字</span></button>
+                        <button onclick="sendToNai('generatedPromptOutput', 'pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
+                        <button onclick="sendToNai('generatedPromptOutput', 'npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
                     </div>
                 </div>
             </div>
@@ -344,7 +426,7 @@
                     <div class="w-full lg:w-1/3 flex flex-col gap-6">
                         <label id="uploadLabel" class="flex flex-col items-center justify-center w-full h-40 border-4 border-dashed border-[#555] hover:border-[#3b82f6] hover:bg-[#1a1a1a] transition cursor-pointer bg-black">
                             <span class="text-gray-400 font-black text-sm uppercase flex flex-col items-center gap-2">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                <span class="text-2xl">📸</span>
                                 載入視覺影像
                             </span>
                             <input type="file" id="imageUploadInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
@@ -391,7 +473,6 @@
                 </h2>
                 
                 <div class="space-y-6">
-                    <!-- 新增的 Booru 導入區塊 -->
                     <div class="bg-black p-4 border-4 border-[#333] flex flex-col md:flex-row gap-4 items-end shadow-[4px_4px_0_var(--hifi-orange)] transition-all">
                         <div class="flex-1 w-full">
                             <label class="block text-sm font-black text-blue-400 mb-2 uppercase">BOORU POST URL (E621/E926/Danbooru/Gelbooru)</label>
@@ -416,7 +497,6 @@
                     <div class="bg-black p-6 border-4 border-[#333]">
                         <label class="block text-sm font-black text-white mb-4 uppercase">結構化處理選項</label>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <!-- 完整還原的下拉選單 -->
                             <div class="flex items-center gap-3 col-span-1 sm:col-span-2 group">
                                 <label class="flex items-center gap-3 cursor-pointer">
                                     <input type="checkbox" id="tbChkSpecies" onchange="toggleSpeciesDropdown()" class="w-5 h-5 accent-[var(--hifi-red)]">
@@ -649,12 +729,21 @@
 
     <script>
         // ==========================================
-        // 全域變數與初始化
+        // 全域變數庫與初始化
         // ==========================================
         const PROXY_BASE_URL = 'https://nai-proxy-ten.vercel.app/api';
         
         let toastTimeout;
         let coords = { pc: {x: 0.3, y: 0.5}, npc: {x: 0.7, y: 0.5} };
+
+        // Fursona Database (完整移植自附件2)
+        const furData = {
+            species: ["怪物", "惡魔", "狼", "龍", "狐狸", "老虎", "兔子", "獅子", "熊", "牛", "鳥", "山羊", "魚", "刺蝟", "猴子", "鬣狗", "馬", "浣熊", "雪豹", "老鼠", "狛犬", "鹿", "胡狼", "熊貓", "鯊魚", "綿羊", "史萊姆", "野豬", "豬", "美洲豹", "豹", "黑豹", "蝙蝠", "貓頭鷹", "松鼠", "鴨子", "馴鹿", "鸚鵡", "鼬", "小熊貓", "獨角獸", "雞", "郊狼", "水獺", "倉鼠", "狐獴", "臭鼬", "獵豹", "猞猁", "藪貓", "獰貓", "兔猻", "石虎", "美洲獅", "虎貓", "雲豹", "波斯貓", "緬因貓", "暹羅貓", "斯芬克斯貓", "孟加拉貓", "英國短毛貓", "布偶貓", "挪威森林貓", "曼赤肯貓", "異國短毛貓", "柴犬", "哈士奇", "黃金獵犬", "拉布拉多", "柯基", "德國牧羊犬", "杜賓犬", "羅威納", "貴賓犬", "吉娃娃", "臘腸犬", "邊境牧羊犬", "藏獒", "薩摩耶", "鬥牛犬", "比格犬", "大丹犬", "北極狼", "澳洲野犬", "豺", "非洲野犬", "藏狐", "大麥町", "秋田犬", "瑪爾濟斯", "拳師犬", "阿富汗獵犬", "聖伯納犬", "紐芬蘭犬", "鬆獅犬", "尋血獵犬", "巴哥犬", "靈緹", "紐波利頓犬"],
+            theme: ["現代", "奇幻", "科幻", "魔幻", "中世紀", "武俠", "後啟示錄", "童話", "賽博龐克", "蒸氣龐克", "克蘇魯", "都市傳說", "和風", "古希臘", "埃及神話", "北歐神話", "廢土", "迪斯可", "太空歌劇", "反烏托邦", "暗黑奇幻", "田園", "海洋奇幻", "膠囊科技", "新怪談", "部落", "黑幫", "西部", "哥德", "巴洛克", "禪意", "波普", "怪獸電影", "蒸汽波", "太陽龐克", "生化龐克", "柴油龐克", "原子龐克", "暗黑學院", "鄉村農核", "怪誕核心", "夢境核心", "千禧年", "弗魯提格航空", "網路核心", "故障藝術", "創傷核心", "洛可可", "裝飾藝術", "新藝術", "維多利亞時代", "愛德華時代", "文藝復興", "黑色電影", "南方哥德", "太空西部", "仙俠", "百鬼夜行", "特攝", "魔法變身", "機甲", "喪屍危機", "阿茲特克", "凱爾特神話", "亞瑟王傳說", "絲綢之路", "冷戰諜報", "鍊金術", "神祕動物學", "超自然現象", "飛碟狂熱", "巫毒", "塔羅", "超人類主義", "元宇宙", "虛擬實境", "街機時代", "8位元像素", "合成器迷幻", "油漬搖滾", "情緒硬核", "爵士時代", "禁酒令時期", "極道", "賽博哥德", "復古未來主義", "太空漫遊", "身體恐怖", "廢墟美學", "邪典", "控制論主題"],
+            fashion: ["糖果色紳士", "阿美咔嘰", "山系機能", "學院常春藤", "街頭潮牌", "硬派工裝", "高街暗黑", "球衣復古", "城市男孩", "戰術機能", "西裝暴徒", "嘻哈街舞", "機車皮衣", "雅痞紳士", "乾淨俐落", "丹寧牛仔", "英倫紳士", "義式薩托", "滑板街頭", "衝浪男孩", "伐木工風", "軍事復古", "粗獷紳士", "貴族預科生", "搖滾浪子", "泰迪男孩", "摩斯族", "足球流氓風", "賽車手風", "老爹風", "科技忍者", "廢土生存", "華爾街精英", "科技新貴", "西部牛仔", "戶外釣魚風", "奇卡諾", "英倫搖滾", "黑暗工裝", "復古水手", "重機騎士", "礦工工裝", "運動學院", "高爾夫俱樂部", "網球俱樂部", "男校制服風", "極簡男裝", "解構裁縫", "先鋒男裝", "哥德貴族", "賽博龐克傭兵", "蒸汽龐克發明家", "維多利亞紳士", "昭和不良", "暴走族", "現代武士", "國潮街頭", "韓系歐巴", "痞帥惡霸", "健身兄弟", "戶外探險家", "飛行員風", "復古運動風", "英國路霸", "斯拉夫黑幫", "老派嘻哈", "紐約雅痞", "巴黎男孩", "義式度假風", "游牧旅人", "浪漫劍客", "復古迪斯可", "花花公子", "戰術特工", "街頭籃球風", "嘻哈滑板", "垃圾搖滾男", "獨立搖滾男", "大都會男士", "荒野獵人", "復古鐵道員", "英國鄉村紳士", "派對男孩", "金屬樂手", "香港古惑仔", "港風復古", "爵士大師", "郵差風", "城市機能", "禪意道袍", "廢墟探險家", "復古波普男", "夏威夷度假風", "美式車庫風", "駭客任務風", "復古拳擊手", "那不勒斯剪裁", "復古黑幫", "塗鴉男孩", "軍大衣風"]
+        };
+
+        let furState = { species: [], theme: [], fashion: [], isSpecialMode: false };
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedNaiKey = localStorage.getItem('nai_api_key');
@@ -663,6 +752,7 @@
             updateProviderUI();
             setupDraggable('markerA', 'pc');
             setupDraggable('markerB', 'npc');
+            initFurDropdowns(); // 初始化獸設選單
         });
 
         // ==========================================
@@ -741,7 +831,107 @@
         }
 
         // ==========================================
-        // 配置 & API 通訊核心 (完全解除 API 金鑰強制檢查)
+        // Fursona 獸設專用 UI 邏輯
+        // ==========================================
+        function initFurDropdowns() {
+            ['species', 'theme', 'fashion'].forEach(category => {
+                const container = document.getElementById(`fur-${category}-dropdown`);
+                furData[category].forEach(item => {
+                    const label = document.createElement('label');
+                    label.className = "flex items-center fur-dropdown-item";
+                    label.innerHTML = `
+                        <input type="checkbox" value="${item}" class="hidden" onchange="handleFurSelection('${category}', this)">
+                        <span>${item}</span>
+                    `;
+                    container.appendChild(label);
+                });
+            });
+
+            // 點擊外部收起
+            document.addEventListener('click', (e) => {
+                ['species', 'theme', 'fashion'].forEach(cat => {
+                    const dropdown = document.getElementById(`fur-${cat}-dropdown`);
+                    const container = document.getElementById(`fur-${cat}-container`);
+                    if (container && !container.contains(e.target)) dropdown.classList.add('hidden');
+                });
+            });
+        }
+
+        function toggleFurDropdown(category) {
+            const dropdown = document.getElementById(`fur-${category}-dropdown`);
+            ['species', 'theme', 'fashion'].forEach(cat => {
+                if(cat !== category) document.getElementById(`fur-${cat}-dropdown`).classList.add('hidden');
+            });
+            dropdown.classList.toggle('hidden');
+        }
+
+        function handleFurSelection(category, checkbox) {
+            if (checkbox.checked) {
+                if (furState[category].length >= 3) {
+                    checkbox.checked = false;
+                    return showToast("最多只能選擇 3 項！");
+                }
+                furState[category].push(checkbox.value);
+            } else {
+                furState[category] = furState[category].filter(val => val !== checkbox.value);
+            }
+            renderFurTags(category);
+        }
+
+        function renderFurTags(category) {
+            const tagsContainer = document.getElementById(`fur-${category}-tags`);
+            const placeholder = document.getElementById(`fur-${category}-placeholder`);
+            
+            tagsContainer.innerHTML = '';
+            if (furState[category].length > 0) {
+                placeholder.classList.add('hidden');
+                furState[category].forEach(item => {
+                    const tag = document.createElement('span');
+                    tag.className = "fur-tag";
+                    tag.innerHTML = `${item} <button type="button" onclick="removeFurTag('${category}', '${item}', event)">❌</button>`;
+                    tagsContainer.appendChild(tag);
+                });
+            } else {
+                placeholder.classList.remove('hidden');
+            }
+
+            const checkboxes = document.querySelectorAll(`#fur-${category}-dropdown input[type="checkbox"]`);
+            checkboxes.forEach(cb => cb.checked = furState[category].includes(cb.value));
+        }
+
+        window.removeFurTag = function(category, item, event) {
+            furState[category] = furState[category].filter(val => val !== item);
+            renderFurTags(category);
+            event.stopPropagation();
+        }
+
+        window.randomizeFursona = function(category) {
+            const arr = furData[category];
+            const count = Math.floor(Math.random() * 3) + 1;
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            furState[category] = shuffled.slice(0, count);
+            renderFurTags(category);
+            showToast(`🎲 已隨機抽取 ${count} 項`);
+        }
+
+        function toggleFurModeUI() {
+            furState.isSpecialMode = document.getElementById('furNsfwToggle').checked;
+            const panel = document.getElementById('furModePanel');
+            const desc = document.getElementById('furModeDesc');
+            
+            if (furState.isSpecialMode) {
+                desc.textContent = 'QUESTIONABLE / ADOLESCENT (少年微性感)';
+                desc.classList.replace('text-gray-500', 'text-[var(--hifi-red)]');
+                panel.classList.replace('border-[#444]', 'border-[var(--hifi-red)]');
+            } else {
+                desc.textContent = 'SAFE (全年齡) / KEMOSHOTA';
+                desc.classList.replace('text-[var(--hifi-red)]', 'text-gray-500');
+                panel.classList.replace('border-[var(--hifi-red)]', 'border-[#444]');
+            }
+        }
+
+        // ==========================================
+        // 配置 & API 通訊核心 (無金鑰檢查)
         // ==========================================
         let gcpCredsObj = null;
 
@@ -820,7 +1010,6 @@
                     targetUrl: targetUrl, region: region, model: modelName
                 };
             } else {
-                // 完全移除拋錯邏輯！Canvas 內建 apiKey 變數，即使無輸入框也順利調用
                 const userKey = document.getElementById('cfgAiKey').value.trim();
                 const activeKey = userKey || (typeof apiKey !== 'undefined' ? apiKey : "");
                 endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${activeKey}`;
@@ -845,9 +1034,9 @@
         }
 
         // ==========================================
-        // Tab 2: 隨機 Prompt 生成 (完全還原本來的長文本與單純擴充後方的邏輯)
+        // Tab 2: 整合了獸設生成機的 Prompt 發想模組
         // ==========================================
-        async function generateRandomPrompt() {
+        async function generateIntegratedPrompt() {
             const base = document.getElementById('basePromptInput').value.trim();
             const chkScenario = document.getElementById('chkScenario').checked;
             const chkClothing = document.getElementById('chkClothing').checked;
@@ -855,39 +1044,59 @@
             const chkPerspective = document.getElementById('chkPerspective').checked;
             const chkHeldItem = document.getElementById('chkHeldItem').checked;
 
-            if (!chkScenario && !chkClothing && !chkBehavior && !chkPerspective && !chkHeldItem) {
-                return;
-            }
-
+            const customPrompt = document.getElementById('furCustomPrompt').value.trim();
+            
             const btn = document.getElementById('btnGeneratePrompt');
-            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "發揮創意中 (PROCESSING...)";
-            document.getElementById('generatedPromptOutput').value = "AI 正在從零開始為您構思場景細節，請稍候...";
+            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "發揮創意與判定中 (PROCESSING...)";
+            document.getElementById('generatedPromptOutput').value = "AI 正在分析特徵完整度、深化角色設定與發想場景細節，請稍候...";
 
             let reqText = [];
-            if (chkScenario) reqText.push("- 情景 (scenario)：包含背景與地點佈置的物件。");
-            if (chkClothing) reqText.push("- 服裝 (clothing)：包含配件與明確的時尚風格。");
-            if (chkBehavior) reqText.push("- 行為 (behavior)：包含整體姿勢、手部動作與臉部表情。");
-            if (chkPerspective) reqText.push("- 透視 (perspective)：包含拍攝距離與視線角度。");
-            if (chkHeldItem) reqText.push("- 互動的物件 (interactive_object)：包含拿著、抱著、撫摸或互動的物品 (如 holding_sword, hugging_pillow, petting_cat)。");
+            if (chkScenario) reqText.push("- 情景與佈置 (scenario)：背景與地點的物件。");
+            if (chkClothing) reqText.push("- 服裝與風格 (clothing)：配件與明確的時尚風格。");
+            if (chkBehavior) reqText.push("- 行為與表情 (behavior)：整體姿勢與臉部表情。");
+            if (chkPerspective) reqText.push("- 透視與鏡頭 (perspective)：拍攝距離與視線角度。");
+            if (chkHeldItem) reqText.push("- 互動的物件 (interactive_object)：拿著或互動的物品。");
+
+            const modeInstruction = furState.isSpecialMode 
+                ? "請設定角色體格為「獸少年 (adolescent)」，文本描述需展現青春期的性覺醒以及暗示性的性探索，服裝剪裁與動作表情可以帶有微性感、誘惑或大膽的氛圍 (符合繪圖 rating:questionable 的程度)。" 
+                : "請設定角色體格為「獸太 (kemoshota)」，文本描述必須是健康、陽光、純潔的日常氛圍，絕不包含任何性暗示或過度裸露 (符合繪圖 rating:safe 的程度)。";
 
             const aiPrompt = `你是一個充滿創意且熟知各類動漫、遊戲與獸人(Furry)文化的 e621 標籤生成專家。
-使用者輸入的基礎角色特徵為: "${base || '(無特定角色)'}"
+使用者輸入的「基礎角色特徵 Prompt」為: "${base || '(未指定)'}"
+
+使用者提供的「獸設與風格參數」：
+- 獸設物種：${furState.species.length ? furState.species.join(', ') : '未指定 (請自由發想)'}
+- 主題畫面：${furState.theme.length ? furState.theme.join(', ') : '未指定 (請自由發想)'}
+- 時尚風格：${furState.fashion.length ? furState.fashion.join(', ') : '未指定 (請自由發想)'}
+- 附加指引：${customPrompt || '無'}
+- 模式指示：${modeInstruction}
 
 【核心思考準則】
 你必須放棄「If you already have all the information you need」的思想，因此你必須加倍思考，絕不敷衍！
 
-請先判斷該角色特徵是否為「版權角色 (Copyright Character) / 已知 IP 角色」：
-1. 如果是版權角色：請以該角色自身作品的世界觀、背景設定和個性為前提，提供完全符合該角色人設且滿足下方勾選內容的 Prompt。
-2. 如果不是版權角色 (或只是通用特徵/原創設定)：請「加倍思考」，為其設計一個完善的世界觀、豐富的背景設定與鮮明的個性。在深思熟慮後，給出極具表現力且滿足下方勾選內容的 Prompt。
-
-根據以下勾選項目的具體要求，生成相應的 e621 標籤：
+【任務一：完整度判定與過濾】
+請仔細閱讀並分析上述「基礎角色特徵 Prompt」。
+對於下方列出需要生成的維度，如果「基礎角色特徵 Prompt」中【已經明顯包含了該維度的具體描述】，那麼你在後續輸出時，必須將該維度對應的 JSON 欄位設為空字串 ("")。
+**絕對不要擴寫或覆蓋使用者已經自行定義好的維度！** 只有判定為「尚未包含」的維度，才進行任務三的擴寫。
+需要檢驗與可能生成的維度：
 ${reqText.join('\n')}
 
-回傳 JSON 格式 (scenario, clothing, behavior, perspective, interactive_object) (未勾選或不適用的留空字串)。標籤必須是 e621 適用的純小寫英文，單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只 單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只輸出標籤，不要輸出多餘的說明。`;
+【任務二：角色專屬特徵深化 (character_traits)】
+我們需要一份詳細的角色本體外觀設定 tags：
+1. 如果「基礎角色特徵」中確定這是某個「版權角色」，請以該角色作品的世界觀、角色背景設定為基礎，深化其細部特徵 tags。
+2. 如果是非版權角色或完全空白，請根據「獸設物種」，為其設計一個完善的世界觀與鮮明的外貌特徵。先說明他是一個什麼物種(如果只有一個指定的物種，就直接說明他是那個指定的物種。如果指定了多個物種，就表示他是這幾個指定物種的雜交物種)的fursona角色，詳細包含物種特徵、耳朵、毛色、髮型、眼睛、鼻子、斑紋、尾巴、肉墊等。如果是現實物種需有顯著的異色或奇幻斑紋區別。例如:他看起来像雪豹和异色狐狸的混合物种，他拥有狐狸般高耸的菱形尖耳朵，耳背覆盖着深灰色短毛并在边缘过渡为黑色，内耳则布满柔软的乳白色绒毛，耳尖处带有一小撮雪豹特有的黑色簇毛。 发型是蓬松且带有层次感的短碎发，发色为干净的银灰色，几缕浏海垂在额前，发尾略微挑染了深蓝色。 他的眼睛为极具特色的异瞳，右眼呈温暖的琥珀金，左眼为深邃的宝石蓝，瞳孔均为黑色圆形，展现出温和的气息，搭配与发色一致的银灰色细长眉毛。 脸部中央是一颗湿润的纯黑色鼻子，舌头为健康的淡粉色。 脸部斑纹非常简约，仅在左右眼角下方各有一道像水滴状的深灰色细小斑点，增加辨识度。 身体主色调为奶油灰色，身体斑纹集中在背部与肩部，是由雪豹特有的深灰色不规则圆形斑块构成，斑块中央颜色较浅。 四肢呈现干净的「黑色袜子」效果，从手肘和膝盖以下逐渐过渡为浓郁的墨黑色，且手掌与脚掌的肉垫为温润的藕粉色。 最显眼的尾巴极其粗大且长，形状浑圆，尾部底色与身体一致，布满了密集的深灰色环状斑纹，尾尖则收尾成一簇厚实的纯黑色毛球。
+3. 請將深化後的結果轉為 e621 tags，放在 character_traits 中。(這個結果將會覆蓋回使用者的輸入框，請確保它包含了角色本體所需的 base tags，如果使用者原本的 prompt 中有角色特徵，請將其融合進來)。
+
+【任務三：未包含維度深度發想】
+針對任務一判定為「未包含」且使用者勾選的維度，如果非版權角色，請結合「主題畫面」、「時尚風格」、「附加指引」以及「模式指示」進行深度發想，生成豐富的e621 Tags。
+針對任務一判定為「未包含」且使用者勾選的維度，如果是版權角色，請以該角色自身作品的世界觀、背景設定和個性為前提，以完全符合該角色人設進行深度發想，生成豐富的 e621 tags。
+
+回傳 JSON 格式 (character_traits, scenario, clothing, behavior, perspective, interactive_object) (不需要的維度請留空字串)。標籤必須是 e621 適用的純小寫英文，單字之間用底線 "_" 連接，並用「逗號加空格」(", ")分隔。只輸出標籤，不要多餘說明。`;
 
             const schema = { 
                 type: "OBJECT", 
                 properties: { 
+                    character_traits: {type: "STRING"},
                     scenario: {type: "STRING"}, 
                     clothing: {type: "STRING"}, 
                     behavior: {type: "STRING"}, 
@@ -899,9 +1108,14 @@ ${reqText.join('\n')}
             try {
                 const p = await callGeminiAPI(aiPrompt, schema);
                 
-                // 完全還原本來的邏輯：原本輸入的角色特徵放前面，擴充的 Tags 放後面。不改變使用者輸入。
+                // 無縫覆蓋回角色特徵輸入框
+                if (p.character_traits) {
+                    document.getElementById('basePromptInput').value = p.character_traits;
+                }
+
+                // 將其他 AI 判斷需要擴寫且有值的 Tags 組合起來
                 let finalTags = [];
-                if (base) finalTags.push(base);
+                if (p.character_traits) finalTags.push(p.character_traits);
                 if (p.scenario) finalTags.push(p.scenario);
                 if (p.clothing) finalTags.push(p.clothing);
                 if (p.behavior) finalTags.push(p.behavior);
@@ -909,15 +1123,16 @@ ${reqText.join('\n')}
                 if (p.interactive_object) finalTags.push(p.interactive_object);
 
                 document.getElementById('generatedPromptOutput').value = finalTags.join(", ");
+                showToast("✓ 生成完成！角色特徵已更新，重複維度已自動略過。");
             } catch(e) { 
                 document.getElementById('generatedPromptOutput').value = "生成失敗: " + e.message; 
             } finally { 
-                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "啟動 AI 引擎 (GENERATE)"; 
+                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "啟動 AI 引擎 (INTEGRATED GENERATION)"; 
             }
         }
 
         // ==========================================
-        // Tab 3: 圖像反推 (完全還原本來的長文本與多人按順序推理的要求)
+        // Tab 3: 圖像反推 (原封不動保留)
         // ==========================================
         let scanImgBase64, scanImgMime;
         function handleImageUpload(e) {
@@ -989,7 +1204,7 @@ ${reqText.join('\n')}
         }
 
         // ==========================================
-        // Tab 4: Booru 標籤導入與標籤優化 (加倍思考：深掘各大圖庫 API 結構差異)
+        // Tab 4: Booru 標籤導入與標籤優化 (原封不動保留)
         // ==========================================
         async function importBooruTags() {
             const urlInput = document.getElementById('booruUrlInput').value.trim();
@@ -1006,7 +1221,6 @@ ${reqText.join('\n')}
                 const urlObj = new URL(urlInput);
                 const hostname = urlObj.hostname;
 
-                // 針對四大圖庫進行客製化網址解析與 API 生成
                 if (hostname.includes('e621.net')) {
                     const match = urlObj.pathname.match(/\/posts\/(\d+)/);
                     if(!match) throw new Error("無法解析 e621 網址格式，找不到 Post ID");
@@ -1031,17 +1245,14 @@ ${reqText.join('\n')}
                     throw new Error("目前僅支援 E621, E926, Danbooru, Gelbooru 四大圖庫");
                 }
 
-                // 呼叫中轉 Proxy：考量代理配置可能為 GET 或 POST，採用優先嘗試 POST 再 Fallback 到 GET 的無死角策略
                 let proxyRes;
                 try {
                     proxyRes = await fetch(`${PROXY_BASE_URL}/booru`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: apiUrl, targetUrl: apiUrl }) // 同時兼容兩種常見變數命名
+                        body: JSON.stringify({ url: apiUrl, targetUrl: apiUrl })
                     });
-                } catch (e) {
-                    // 若 POST 失敗或不被允許，將在下方回退到 GET
-                }
+                } catch (e) {}
 
                 if (!proxyRes || !proxyRes.ok) {
                     proxyRes = await fetch(`${PROXY_BASE_URL}/booru?url=${encodeURIComponent(apiUrl)}`);
@@ -1052,25 +1263,19 @@ ${reqText.join('\n')}
                 const data = await proxyRes.json();
                 let tags = "";
 
-                // 針對不同圖庫的 JSON 結構差異提取 Tag
                 if (site === 'e621' || site === 'e926') {
                     if (!data.post || !data.post.tags) throw new Error("該貼文可能已被刪除或找不到標籤資料");
                     const tagsObj = data.post.tags;
                     const allTags = [];
-                    // e621/e926 將標籤分為 general, species, character, artist 等多個陣列，必須全部合併
                     for (const category in tagsObj) {
-                        if(Array.isArray(tagsObj[category])) {
-                            allTags.push(...tagsObj[category]);
-                        }
+                        if(Array.isArray(tagsObj[category])) allTags.push(...tagsObj[category]);
                     }
                     tags = allTags.join(', ');
                 } else if (site === 'danbooru') {
                     if (!data.tag_string) throw new Error("該貼文可能已被刪除或找不到標籤資料");
-                    // Danbooru 是一串以空白分隔的文字
                     tags = data.tag_string.split(' ').join(', ');
                 } else if (site === 'gelbooru') {
                     if (!data.post || !data.post[0] || !data.post[0].tags) throw new Error("該貼文可能已被刪除或找不到標籤資料");
-                    // Gelbooru 是一串以空白分隔的文字，且包裝在陣列裡
                     tags = data.post[0].tags.split(' ').join(', ');
                 }
 
@@ -1125,7 +1330,7 @@ ${reqText.join('\n')}
         }
 
         // ==========================================
-        // Tab 5: NovelAI 控制
+        // Tab 5: NovelAI 控制 (原封不動保留)
         // ==========================================
         async function handleNaiAuth() {
             const key = document.getElementById('naiApiKey').value.trim();
@@ -1162,7 +1367,6 @@ ${reqText.join('\n')}
             document.getElementById('dragCanvas').style.aspectRatio = `${res[0]}/${res[1]}`;
         }
 
-        // 座標拖曳邏輯
         function setupDraggable(elementId, type) {
             const el = document.getElementById(elementId);
             const container = document.getElementById('dragCanvas');
@@ -1212,14 +1416,12 @@ ${reqText.join('\n')}
                 let p_char_captions = [];
                 let n_char_captions = [];
 
-                // Char A (PC)
                 let pcPos = document.getElementById('naiPcPos').value.trim();
                 if(pcPos) {
                     p_char_captions.push({ char_caption: pcPos, centers: [coords.pc] });
                     n_char_captions.push({ char_caption: document.getElementById('naiPcNeg').value.trim(), centers: [coords.pc] });
                 }
 
-                // Char B (NPC)
                 if(isNpcEnabled) {
                     let npcPos = document.getElementById('naiNpcPos').value.trim();
                     if(npcPos) {
@@ -1246,7 +1448,7 @@ ${reqText.join('\n')}
                 };
 
                 const payload = { 
-                    input: document.getElementById('naiBasePos').value, // Fallback
+                    input: document.getElementById('naiBasePos').value,
                     model: document.getElementById('naiModel').value, 
                     action: 'generate', parameters: params 
                 };
