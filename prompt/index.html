@@ -200,7 +200,7 @@
                     </h1>
                 </div>
                 <div class="text-sm font-black bg-[var(--hifi-yellow)] text-black px-4 py-2 border-4 border-black shadow-[4px_4px_0_#fff] skew-x-[-5deg]">
-                    <span class="inline-block skew-x-[5deg]">VER. NovelAI + FURSONA</span>
+                    <span class="inline-block skew-x-[5deg]">VER. NovelAI</span>
                 </div>
             </div>
 
@@ -416,13 +416,13 @@
         </main>
 
         <!-- ==================== 分頁 3: AI 圖像反推 Tags ==================== -->
-        <main id="imageToTagsView" class="tab-hidden max-w-6xl mx-auto w-full">
+        <main id="imageToTagsView" class="tab-hidden max-w-[1400px] mx-auto w-full">
             <div class="hifi-panel p-6 md:p-10">
                 <h2 class="text-2xl font-black text-white uppercase tracking-widest mb-6 border-b-4 border-white pb-3 drop-shadow-[2px_2px_0_#3b82f6]">
                     [ MODULE.VISION ] 圖像深度解析
                 </h2>
                 <div class="flex flex-col lg:flex-row gap-8">
-                    <!-- 上傳區 -->
+                    <!-- 左側：圖片上傳與預覽區 -->
                     <div class="w-full lg:w-1/3 flex flex-col gap-6">
                         <label id="uploadLabel" class="flex flex-col items-center justify-center w-full h-40 border-4 border-dashed border-[#555] hover:border-[#3b82f6] hover:bg-[#1a1a1a] transition cursor-pointer bg-black">
                             <span class="text-gray-400 font-black text-sm uppercase flex flex-col items-center gap-2">
@@ -432,34 +432,76 @@
                             <input type="file" id="imageUploadInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
                         </label>
                         
-                        <div id="imagePreviewContainer" class="hidden w-full border-4 border-[#333] relative bg-black flex items-center justify-center scanner-container group cursor-pointer h-64" onclick="document.getElementById('imageUploadInput').click()">
+                        <div id="imagePreviewContainer" class="hidden w-full border-4 border-[#333] relative bg-black flex items-center justify-center scanner-container group cursor-pointer h-[350px]" onclick="document.getElementById('imageUploadInput').click()">
                             <div class="scanner-line"></div>
                             <img id="imagePreview" src="" class="w-full h-full object-contain relative z-10 p-2">
-                            <div class="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-15 font-black uppercase tracking-widest">更換圖片</div>
+                            <div class="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-15 font-black uppercase tracking-widest text-white">更換圖片</div>
                         </div>
 
                         <button id="btnAnalyzeImage" onclick="analyzeImage()" disabled class="w-full py-4 hifi-btn text-xl !bg-blue-600 shadow-[6px_6px_0_#fff]">
                             <span class="hifi-btn-inner">開始掃描 (ANALYZE)</span>
                         </button>
                         <div id="analyzeStatus" class="text-center text-xs text-gray-500 font-black uppercase tracking-widest">AWAITING IMAGE...</div>
+                        <button onclick="copyAllAnalyzedTags()" class="w-full py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg] mt-auto"><span class="inline-block skew-x-[5deg]">📋 複製全部陣列結果</span></button>
                     </div>
                     
-                    <!-- 結果區 -->
-                    <div class="w-full lg:w-2/3 bg-black border-4 border-[#333] p-6 flex flex-col">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">角色特徵/數量 (Base)</label><textarea id="out_base" rows="3" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">情景 (Scenario)</label><textarea id="out_scenario" rows="3" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">服裝 (Clothing)</label><textarea id="out_clothing" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">行為 (Behavior)</label><textarea id="out_behavior" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">透視 (Perspective)</label><textarea id="out_perspective" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                            <div><label class="block text-xs font-black text-gray-400 mb-1 uppercase">物件 (Held)</label><textarea id="out_held" rows="2" class="w-full p-2 hifi-input font-mono text-sm resize-none"></textarea></div>
-                        </div>
+                    <!-- 右側：結果陣列區塊 (12欄) -->
+                    <div class="w-full lg:w-2/3 flex flex-col gap-5">
                         
-                        <div class="flex flex-wrap gap-3 mt-6 pt-4 border-t-4 border-[#333]">
-                            <button onclick="copyAllAnalyzedTags()" class="flex-1 py-3 bg-white text-black border-4 border-black font-black uppercase hover:bg-gray-200 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">📋 複製全部陣列</span></button>
-                            <button onclick="sendAnalyzedToNai('pc')" class="flex-1 py-3 bg-[var(--hifi-yellow)] text-black border-4 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色A)</span></button>
-                            <button onclick="sendAnalyzedToNai('npc')" class="flex-1 py-3 bg-blue-500 text-white border-4 border-black font-black uppercase hover:bg-blue-600 shadow-[4px_4px_0_#000] skew-x-[-5deg]"><span class="inline-block skew-x-[5deg]">🚀 傳送至 NAI (角色B)</span></button>
+                        <!-- 基礎陣列 -->
+                        <div class="bg-black border-4 border-green-500 p-4 shadow-[4px_4px_0_#22c55e]">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b-2 border-green-900">
+                                <label class="text-base font-black text-green-400 uppercase tracking-wider flex items-center gap-2">
+                                    <span>🌍</span> 基礎陣列 (BASE ARRAY)
+                                </label>
+                                <button onclick="sendBaseAnalyzedToNai()" class="py-1.5 px-4 bg-green-500 text-black border-2 border-black font-black uppercase hover:bg-green-400 shadow-[2px_2px_0_#000] skew-x-[-5deg] text-xs transition-transform active:translate-x-1 active:translate-y-1 active:shadow-none"><span class="inline-block skew-x-[5deg]">🚀 傳送至 BASE POSITIVE</span></button>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">人數及主題</label><textarea id="out_base_theme" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-green-900 focus:border-green-500 focus:shadow-[2px_2px_0_#22c55e]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">透視及鏡頭</label><textarea id="out_base_perspective" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-green-900 focus:border-green-500 focus:shadow-[2px_2px_0_#22c55e]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">環境及佈置</label><textarea id="out_base_environment" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-green-900 focus:border-green-500 focus:shadow-[2px_2px_0_#22c55e]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">背景及特效</label><textarea id="out_base_background" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-green-900 focus:border-green-500 focus:shadow-[2px_2px_0_#22c55e]"></textarea></div>
+                            </div>
                         </div>
+
+                        <!-- 角色1陣列 -->
+                        <div class="bg-black border-4 border-[var(--hifi-yellow)] p-4 shadow-[4px_4px_0_var(--hifi-yellow)]">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b-2 border-yellow-900">
+                                <label class="text-base font-black text-[var(--hifi-yellow)] uppercase tracking-wider flex items-center gap-2">
+                                    <span>👤</span> 角色 1 陣列 (CHARACTER 1)
+                                </label>
+                                <div class="flex gap-2">
+                                    <button onclick="sendCharAnalyzedToNai(1, 'pc')" class="py-1.5 px-3 bg-[var(--hifi-yellow)] text-black border-2 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[2px_2px_0_#000] skew-x-[-5deg] text-xs transition-transform active:translate-x-1 active:translate-y-1 active:shadow-none"><span class="inline-block skew-x-[5deg]">🚀 至 角色A</span></button>
+                                    <button onclick="sendCharAnalyzedToNai(1, 'npc')" class="py-1.5 px-3 bg-blue-500 text-white border-2 border-black font-black uppercase hover:bg-blue-600 shadow-[2px_2px_0_#000] skew-x-[-5deg] text-xs transition-transform active:translate-x-1 active:translate-y-1 active:shadow-none"><span class="inline-block skew-x-[5deg]">🚀 至 角色B</span></button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">作品和角色</label><textarea id="out_char1_series" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-yellow-900 focus:border-[var(--hifi-yellow)] focus:shadow-[2px_2px_0_var(--hifi-yellow)]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">外貌和細節</label><textarea id="out_char1_appearance" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-yellow-900 focus:border-[var(--hifi-yellow)] focus:shadow-[2px_2px_0_var(--hifi-yellow)]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">服裝和配件</label><textarea id="out_char1_clothing" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-yellow-900 focus:border-[var(--hifi-yellow)] focus:shadow-[2px_2px_0_var(--hifi-yellow)]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">表情和動作</label><textarea id="out_char1_expression" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-yellow-900 focus:border-[var(--hifi-yellow)] focus:shadow-[2px_2px_0_var(--hifi-yellow)]"></textarea></div>
+                            </div>
+                        </div>
+
+                        <!-- 角色2陣列 -->
+                        <div class="bg-black border-4 border-blue-500 p-4 shadow-[4px_4px_0_#3b82f6]">
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b-2 border-blue-900">
+                                <label class="text-base font-black text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                                    <span>👥</span> 角色 2 陣列 (CHARACTER 2)
+                                </label>
+                                <div class="flex gap-2">
+                                    <button onclick="sendCharAnalyzedToNai(2, 'pc')" class="py-1.5 px-3 bg-[var(--hifi-yellow)] text-black border-2 border-black font-black uppercase hover:bg-[var(--hifi-orange)] shadow-[2px_2px_0_#000] skew-x-[-5deg] text-xs transition-transform active:translate-x-1 active:translate-y-1 active:shadow-none"><span class="inline-block skew-x-[5deg]">🚀 至 角色A</span></button>
+                                    <button onclick="sendCharAnalyzedToNai(2, 'npc')" class="py-1.5 px-3 bg-blue-500 text-white border-2 border-black font-black uppercase hover:bg-blue-600 shadow-[2px_2px_0_#000] skew-x-[-5deg] text-xs transition-transform active:translate-x-1 active:translate-y-1 active:shadow-none"><span class="inline-block skew-x-[5deg]">🚀 至 角色B</span></button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">作品和角色</label><textarea id="out_char2_series" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-blue-900 focus:border-blue-500 focus:shadow-[2px_2px_0_#3b82f6]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">外貌和細節</label><textarea id="out_char2_appearance" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-blue-900 focus:border-blue-500 focus:shadow-[2px_2px_0_#3b82f6]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">服裝和配件</label><textarea id="out_char2_clothing" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-blue-900 focus:border-blue-500 focus:shadow-[2px_2px_0_#3b82f6]"></textarea></div>
+                                <div><label class="block text-[11px] font-black text-gray-400 mb-1">表情和動作</label><textarea id="out_char2_expression" rows="2" class="w-full p-2 hifi-input font-mono text-xs resize-none border-blue-900 focus:border-blue-500 focus:shadow-[2px_2px_0_#3b82f6]"></textarea></div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -752,7 +794,7 @@
             updateProviderUI();
             setupDraggable('markerA', 'pc');
             setupDraggable('markerB', 'npc');
-            initFurDropdowns(); // 初始化獸設選單
+            initFurDropdowns();
         });
 
         // ==========================================
@@ -810,12 +852,33 @@
             switchTab('naiView');
         }
 
-        function sendAnalyzedToNai(targetChar) {
-            const tags = ['out_base','out_scenario','out_clothing','out_behavior','out_perspective','out_held']
+        // --- Vision 重構：獨立的發送函數群 ---
+        function sendBaseAnalyzedToNai() {
+            const tags = ['out_base_theme', 'out_base_perspective', 'out_base_environment', 'out_base_background']
                 .map(id => document.getElementById(id).value.trim())
                 .filter(Boolean)
                 .join(', ');
-            if(!tags) return showToast("沒有解析出任何內容！");
+            
+            if(!tags) return showToast("基礎陣列沒有解析出任何內容！");
+            
+            const targetEl = document.getElementById('naiBasePos');
+            targetEl.value = targetEl.value ? targetEl.value + ", " + tags : tags;
+            
+            showToast(`🚀 已將基礎陣列加入 BASE POSITIVE`);
+            switchTab('naiView');
+        }
+
+        function sendCharAnalyzedToNai(charIndex, targetChar) {
+            const fields = [
+                `out_char${charIndex}_series`,
+                `out_char${charIndex}_appearance`,
+                `out_char${charIndex}_clothing`,
+                `out_char${charIndex}_expression`
+            ];
+            
+            const tags = fields.map(id => document.getElementById(id).value.trim()).filter(Boolean).join(', ');
+            
+            if(!tags) return showToast(`角色 ${charIndex} 陣列沒有解析出任何內容！`);
             
             const targetId = targetChar === 'pc' ? 'naiPcPos' : 'naiNpcPos';
             const targetEl = document.getElementById(targetId);
@@ -826,9 +889,10 @@
                 toggleNpcVis();
             }
             
-            showToast(`🚀 已加入 ${targetChar === 'pc' ? '角色A' : '角色B'} Prompt`);
+            showToast(`🚀 角色 ${charIndex} 陣列已加入 ${targetChar === 'pc' ? '角色A' : '角色B'}`);
             switchTab('naiView');
         }
+        // ------------------------------------
 
         // ==========================================
         // Fursona 獸設專用 UI 邏輯
@@ -847,7 +911,6 @@
                 });
             });
 
-            // 點擊外部收起
             document.addEventListener('click', (e) => {
                 ['species', 'theme', 'fashion'].forEach(cat => {
                     const dropdown = document.getElementById(`fur-${cat}-dropdown`);
@@ -931,7 +994,7 @@
         }
 
         // ==========================================
-        // 配置 & API 通訊核心 (無金鑰檢查)
+        // 配置 & API 通訊核心
         // ==========================================
         let gcpCredsObj = null;
 
@@ -1108,12 +1171,10 @@ ${reqText.join('\n')}
             try {
                 const p = await callGeminiAPI(aiPrompt, schema);
                 
-                // 無縫覆蓋回角色特徵輸入框
                 if (p.character_traits) {
                     document.getElementById('basePromptInput').value = p.character_traits;
                 }
 
-                // 將其他 AI 判斷需要擴寫且有值的 Tags 組合起來
                 let finalTags = [];
                 if (p.character_traits) finalTags.push(p.character_traits);
                 if (p.scenario) finalTags.push(p.scenario);
@@ -1127,12 +1188,12 @@ ${reqText.join('\n')}
             } catch(e) { 
                 document.getElementById('generatedPromptOutput').value = "生成失敗: " + e.message; 
             } finally { 
-                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "啟動 AI 引擎 (INTEGRATED GENERATION)"; 
+                btn.disabled = false; btn.querySelector('.hifi-btn-inner').textContent = "啟 ক্যামের動 AI 引擎 (INTEGRATED GENERATION)"; 
             }
         }
 
         // ==========================================
-        // Tab 3: 圖像反推 (原封不動保留)
+        // Tab 3: AI 圖像反推 Tags (Vision 重構版)
         // ==========================================
         let scanImgBase64, scanImgMime;
         function handleImageUpload(e) {
@@ -1152,38 +1213,77 @@ ${reqText.join('\n')}
 
         async function analyzeImage() {
             if(!scanImgBase64) return;
-            const btn = document.getElementById('btnAnalyzeImage'); const stat = document.getElementById('analyzeStatus');
-            btn.disabled = true; btn.querySelector('.hifi-btn-inner').textContent = "掃描中 (SCANNING...)";
+            const btn = document.getElementById('btnAnalyzeImage'); 
+            const stat = document.getElementById('analyzeStatus');
+            
+            btn.disabled = true; 
+            btn.querySelector('.hifi-btn-inner').textContent = "掃描中 (SCANNING...)";
             document.getElementById('imagePreviewContainer').classList.add('is-scanning');
             
-            ['base','scenario','clothing','behavior','perspective','held'].forEach(id => document.getElementById('out_'+id).value="");
+            // 清空所有 12 個文字框
+            const allIds = [
+                'out_base_theme', 'out_base_perspective', 'out_base_environment', 'out_base_background',
+                'out_char1_series', 'out_char1_appearance', 'out_char1_clothing', 'out_char1_expression',
+                'out_char2_series', 'out_char2_appearance', 'out_char2_clothing', 'out_char2_expression'
+            ];
+            allIds.forEach(id => document.getElementById(id).value = "");
 
             const aiPrompt = `仔細觀察這張圖片，這可能是一張獸人(Furry)或動漫相關的創作。
 記住，你必須放棄「If you already have all the information you need」的思想，你必須加倍思考，盡可能深挖每一個細節，給出極大量且精準的 e621 Tags！
-如果有版權角色(Copyright Character)，務必在 base_character 區塊加入這些角色名稱與作品系列的 Tags 還有對應這些角色的外貌特徵 Tags，如果有原創角色(Original Character)，請不要在 base_character 輸入這些原創角色的角色名稱與作品系列的Tags，而是直接輸出符合圖片的這些角色的外貌特徵 Tags。
-【重要】如果圖片中有多個角色，必須在 base_character 區塊中分別輸出多個角色的特徵，順序是先輸出人物數量(solo,duo,trio,group)，然後輸出角色1的全部外貌特徵，再輸出角色2的全部外貌特徵，以此類推。
-所有 tag 必須為小寫英文，多個單字請用底線 '_' 連接，並以「逗號加空格」(", ")分隔。`;
+如果有版權角色(Copyright Character)，請在 char1 或 char2 加入這些角色名稱與作品系列的 Tags 還有對應這些角色的外貌特徵 Tags，如果有原創角色(Original Character)，請不要在 char1 或 char2 輸入這些原創角色的角色名稱與作品系列的Tags，而是直接輸出符合圖片的這些角色的外貌特徵 Tags。
+所有 tag 必須為小寫英文，多個單字請用底線 '_' 連接，並以「逗號加空格」(", ")分隔。
+
+請將解析結果嚴格分類為以下3大陣列(共12小陣列)：
+【基礎陣列】
+1. base_theme: 人數及主題 (如果有多人，包含互動)
+2. base_perspective: 透視及鏡頭
+3. base_environment: 環境及佈置
+4. base_background: 背景及特效
+
+【角色1陣列】 (對應圖片中第一個角色)
+1. char1_series: 作品名和角色名 (如果是非版權原創角色，請完全留空 "")
+2. char1_appearance: 外貌和細節
+3. char1_clothing: 服裝和配件
+4. char1_expression: 表情和動作
+
+【角色2陣列】 (對應圖片中第二個角色)
+1. char2_series: 作品名和角色名 (如果是非版權原創角色，請完全留空 "")
+2. char2_appearance: 外貌和細節
+3. char2_clothing: 服裝和配件
+4. char2_expression: 表情和動作
+
+若圖片只有一個角色，【角色2陣列】的所有欄位請完全留空 ""。`;
 
             const schema = { 
-                type:"OBJECT", 
-                properties:{
-                    base_character:{type:"STRING"},
-                    scenario:{type:"STRING"},
-                    clothing:{type:"STRING"},
-                    behavior:{type:"STRING"},
-                    perspective:{type:"STRING"},
-                    held_item:{type:"STRING"}
+                type: "OBJECT", 
+                properties: {
+                    base_theme: {type: "STRING"}, base_perspective: {type: "STRING"}, base_environment: {type: "STRING"}, base_background: {type: "STRING"},
+                    char1_series: {type: "STRING"}, char1_appearance: {type: "STRING"}, char1_clothing: {type: "STRING"}, char1_expression: {type: "STRING"},
+                    char2_series: {type: "STRING"}, char2_appearance: {type: "STRING"}, char2_clothing: {type: "STRING"}, char2_expression: {type: "STRING"}
                 } 
             };
 
             try {
                 const p = await callGeminiAPI(aiPrompt, schema, scanImgBase64, scanImgMime);
-                document.getElementById('out_base').value = p.base_character || "";
-                document.getElementById('out_scenario').value = p.scenario || "";
-                document.getElementById('out_clothing').value = p.clothing || "";
-                document.getElementById('out_behavior').value = p.behavior || "";
-                document.getElementById('out_perspective').value = p.perspective || "";
-                document.getElementById('out_held').value = p.held_item || "";
+                
+                // 填入基礎陣列
+                document.getElementById('out_base_theme').value = p.base_theme || "";
+                document.getElementById('out_base_perspective').value = p.base_perspective || "";
+                document.getElementById('out_base_environment').value = p.base_environment || "";
+                document.getElementById('out_base_background').value = p.base_background || "";
+                
+                // 填入角色1陣列
+                document.getElementById('out_char1_series').value = p.char1_series || "";
+                document.getElementById('out_char1_appearance').value = p.char1_appearance || "";
+                document.getElementById('out_char1_clothing').value = p.char1_clothing || "";
+                document.getElementById('out_char1_expression').value = p.char1_expression || "";
+
+                // 填入角色2陣列
+                document.getElementById('out_char2_series').value = p.char2_series || "";
+                document.getElementById('out_char2_appearance').value = p.char2_appearance || "";
+                document.getElementById('out_char2_clothing').value = p.char2_clothing || "";
+                document.getElementById('out_char2_expression').value = p.char2_expression || "";
+
                 stat.innerHTML = "<span class='text-green-500'>✓ ANALYSIS COMPLETE</span>";
             } catch(e) {
                 stat.innerHTML = `<span class='text-red-500'>❌ FAILED: ${e.message}</span>`;
@@ -1194,17 +1294,24 @@ ${reqText.join('\n')}
         }
         
         function copyAllAnalyzedTags() {
-            const t = ['out_base','out_scenario','out_clothing','out_behavior','out_perspective','out_held']
-                .map(id => document.getElementById(id).value.trim()).filter(Boolean).join(', ');
+            const allIds = [
+                'out_base_theme', 'out_base_perspective', 'out_base_environment', 'out_base_background',
+                'out_char1_series', 'out_char1_appearance', 'out_char1_clothing', 'out_char1_expression',
+                'out_char2_series', 'out_char2_appearance', 'out_char2_clothing', 'out_char2_expression'
+            ];
+            const t = allIds.map(id => document.getElementById(id).value.trim()).filter(Boolean).join(', ');
+            
             if(t) {
                 const ta = document.createElement('textarea'); ta.value = t;
                 document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-                showToast("✓ 已複製全部陣列");
+                showToast("✓ 已複製全部陣列 (12區塊合併)");
+            } else {
+                showToast("沒有任何解析結果可供複製！");
             }
         }
 
         // ==========================================
-        // Tab 4: Booru 標籤導入與標籤優化 (原封不動保留)
+        // Tab 4: Booru 標籤導入與標籤優化
         // ==========================================
         async function importBooruTags() {
             const urlInput = document.getElementById('booruUrlInput').value.trim();
@@ -1330,7 +1437,7 @@ ${reqText.join('\n')}
         }
 
         // ==========================================
-        // Tab 5: NovelAI 控制 (原封不動保留)
+        // Tab 5: NOVELAI 控制
         // ==========================================
         async function handleNaiAuth() {
             const key = document.getElementById('naiApiKey').value.trim();
