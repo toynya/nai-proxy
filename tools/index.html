@@ -11,7 +11,7 @@
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-    body { font-family: 'Noto Sans TC', sans-serif; background-color: #f4f2eb; }
+    body { font-family: 'Noto Sans TC', sans-serif; background-color: #f4f2eb; overflow-x: hidden; }
     
     /* 修正 Phosphor 圖標垂直置中對齊 */
     i.ph {
@@ -40,15 +40,20 @@
     .wakfu-btn:active:not(:disabled) { box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); transform: translateY(1px); }
     .wakfu-btn:disabled { filter: grayscale(100%); opacity: 0.7; cursor: not-allowed; }
 
-    .wakfu-header-ornament { position: relative; text-align: center; }
+    /* 修復裝飾線重疊問題：錨點綁定在文字邊緣而非容器中心 */
+    .wakfu-header-ornament { position: relative; text-align: center; display: inline-block; }
     .wakfu-header-ornament::before, .wakfu-header-ornament::after {
-      content: ''; position: absolute; top: 50%; width: 40px; height: 12px;
+      content: ''; position: absolute; top: 50%; width: 25px; height: 8px;
       background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><path d="M0,15 Q25,0 50,15 T100,15" fill="none" stroke="%23c4bfb3" stroke-width="6" stroke-linecap="round"/></svg>') no-repeat center;
+      background-size: contain;
     }
-    .wakfu-header-ornament::before { left: 50%; transform: translateX(-160%) translateY(-50%); }
-    .wakfu-header-ornament::after { right: 50%; transform: translateX(160%) translateY(-50%) scaleX(-1); }
+    @media (min-width: 640px) {
+      .wakfu-header-ornament::before, .wakfu-header-ornament::after { width: 40px; height: 12px; }
+    }
+    .wakfu-header-ornament::before { right: 100%; margin-right: 12px; transform: translateY(-50%); left: auto; }
+    .wakfu-header-ornament::after { left: 100%; margin-left: 12px; transform: translateY(-50%) scaleX(-1); right: auto; }
 
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #dcd7cb; border-radius: 3px; }
 
@@ -82,6 +87,9 @@
     const RotateCcw = ({className}) => <i className={`ph ph-arrow-counter-clockwise ${className}`}></i>;
     const ChevronUp = ({className}) => <i className={`ph ph-caret-up ${className}`}></i>;
     const ChevronDown = ({className}) => <i className={`ph ph-caret-down ${className}`}></i>;
+    const ChevronLeft = ({className}) => <i className={`ph ph-caret-left ${className}`}></i>;
+    const ChevronRight = ({className}) => <i className={`ph ph-caret-right ${className}`}></i>;
+    const List = ({className}) => <i className={`ph ph-list ${className}`}></i>;
     const MessageSquareText = ({className}) => <i className={`ph ph-chat-text ${className}`}></i>;
     const MailOpen = ({className}) => <i className={`ph ph-envelope-open ${className}`}></i>;
     const FileText = ({className}) => <i className={`ph ph-file-text ${className}`}></i>;
@@ -1241,14 +1249,14 @@
         <ApiConfigContext.Provider value={aiConfig}>
           <div className="min-h-screen bg-[#f4f2eb] font-sans text-[#4d483f] relative pb-10 bg-dotted-pattern">
             
-            {/* 浮動的 API 設置按鈕 (側邊懸浮、極致隱藏邊緣樣式) */}
-            <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center translate-x-[calc(100%-12px)] hover:translate-x-0 opacity-40 hover:opacity-100 transition-all duration-300 ease-out">
+            {/* 浮動的 API 設置按鈕 (晶片外露、滑鼠懸停展開) */}
+            <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center opacity-50 hover:opacity-100 transition-opacity duration-300 ease-out">
               <button 
                 onClick={() => setShowGlobalSettings(true)} 
-                className="bg-white border-2 border-r-0 border-[#e5e1d8] hover:border-[#4bb59b] text-[#8c867a] hover:text-[#4bb59b] py-3 pl-3 pr-2 rounded-l-xl shadow-[-4px_4px_15px_rgba(0,0,0,0.1)] group flex items-center justify-center"
+                className="bg-white border-2 border-r-0 border-[#e5e1d8] hover:border-[#4bb59b] text-[#8c867a] hover:text-[#4bb59b] py-3 pl-3 pr-3 rounded-l-xl shadow-[-4px_4px_15px_rgba(0,0,0,0.1)] group flex items-center justify-center cursor-pointer transition-colors"
               >
                 <Cpu className="w-6 h-6 shrink-0" />
-                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out font-bold text-sm ml-0 group-hover:ml-2 group-hover:pr-2">API / 模型設定</span>
+                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out font-bold text-sm ml-0 group-hover:ml-2">API / 模型設定</span>
               </button>
             </div>
 
@@ -1256,36 +1264,40 @@
               <GlobalSettingsModal aiConfig={aiConfig} setAiConfig={setAiConfig} onClose={() => setShowGlobalSettings(false)} />
             )}
 
-            <div className="pt-8 pb-4 flex flex-col items-center">
-              <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-                 <h1 className="text-3xl font-black text-[#4d483f] tracking-wider wakfu-header-ornament transition-all">
+            {/* 固定於右上角的獨立收縮/展開按鈕 */}
+            <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[90]">
+              <button
+                onClick={() => setIsNavExpanded(!isNavExpanded)}
+                className={`w-12 h-12 rounded-full bg-white border-2 hover:border-[#4bb59b] text-[#8c867a] hover:text-[#4bb59b] shadow-lg flex items-center justify-center transition-all duration-300 backdrop-blur-sm bg-white/90 ${isNavExpanded ? 'border-[#e5e1d8]' : 'border-[#4bb59b] text-[#4bb59b] shadow-[0_0_15px_rgba(75,181,155,0.4)]'}`}
+                title={isNavExpanded ? "收合標題與導航" : "展開標題與導航"}
+              >
+                 {isNavExpanded ? <ChevronUp className="w-6 h-6"/> : <List className="w-6 h-6"/>}
+              </button>
+            </div>
+
+            {/* 頂部標題與導航區塊 (支援向右上角收攏，並歸零高度) */}
+            <div className={`w-full flex justify-center transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden origin-top-right ${isNavExpanded ? 'max-h-[500px] opacity-100 pt-8 sm:pt-10 pb-6 scale-100' : 'max-h-0 opacity-0 pt-0 pb-0 scale-75'}`}>
+              <div className="flex flex-col items-center w-full px-4 sm:px-6">
+                 <h1 className="text-2xl md:text-3xl font-black text-[#4d483f] tracking-wider wakfu-header-ornament mb-5 whitespace-nowrap">
                     個人 AI 小工具合集
                  </h1>
-                 <button 
-                   onClick={() => setIsNavExpanded(!isNavExpanded)} 
-                   className="text-[#8c867a] hover:text-[#4bb59b] bg-white border-2 border-[#e5e1d8] hover:border-[#4bb59b] p-1.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center" 
-                   title={isNavExpanded ? "收合導航列" : "展開導航列"}
-                 >
-                    {isNavExpanded ? <ChevronUp className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
-                 </button>
-              </div>
-              
-              <div className={`overflow-hidden transition-all duration-500 ease-in-out w-full flex justify-center ${isNavExpanded ? 'max-h-40 opacity-100 mb-2' : 'max-h-0 opacity-0 mb-0'}`}>
-                <div className="flex bg-[#ebe7de] border-2 border-[#dcd7cb] rounded-2xl p-1.5 shadow-inner overflow-x-auto max-w-full">
-                  <button onClick={() => setActiveTab(0)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 0 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
-                    <Search className="w-4 h-4 shrink-0" /> AI 感知翻譯
-                  </button>
-                  <button onClick={() => setActiveTab(1)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 1 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
-                    <ShieldAlert className="w-4 h-4 shrink-0" /> 媒體評分檢測
-                  </button>
-                  <button onClick={() => setActiveTab(2)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 2 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
-                    <MessageSquareText className="w-4 h-4 shrink-0" /> 報價交流系統
-                  </button>
-                </div>
+                 
+                 <div className="flex justify-start sm:justify-center bg-[#ebe7de] border-2 border-[#dcd7cb] rounded-2xl p-1.5 shadow-inner overflow-x-auto w-full max-w-full sm:w-max custom-scrollbar snap-x">
+                    <button onClick={() => setActiveTab(0)} className={`shrink-0 snap-center px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 0 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                      <Search className="w-4 h-4 shrink-0" /> AI 感知翻譯
+                    </button>
+                    <button onClick={() => setActiveTab(1)} className={`shrink-0 snap-center px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 1 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                      <ShieldAlert className="w-4 h-4 shrink-0" /> 媒體評分檢測
+                    </button>
+                    <button onClick={() => setActiveTab(2)} className={`shrink-0 snap-center px-4 sm:px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 2 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                      <MessageSquareText className="w-4 h-4 shrink-0" /> 報價交流系統
+                    </button>
+                 </div>
               </div>
             </div>
 
-            <div className="px-4 sm:px-8 max-w-7xl mx-auto mt-4 transition-all duration-500">
+            {/* 工具介面主體 (收合時會向上滑動，並預留安全頂部邊距以免被懸浮按鈕遮擋) */}
+            <div className={`px-4 sm:px-8 max-w-7xl mx-auto transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] ${isNavExpanded ? 'mt-0' : 'mt-16 sm:mt-20'}`}>
               {activeTab === 0 && <App1_Translation />}
               {activeTab === 1 && <App2_MediaScore />}
               {activeTab === 2 && <App3_Commission />}
