@@ -109,45 +109,49 @@
     const apiKey = ""; // 畫布內建預設 apiKey 或手動輸入
     const ApiConfigContext = createContext(null);
 
-    // 核心統一請求函式 (含 AI Studio / GCP / Proxy 邏輯)
+    // 核心統一請求函式 (對齊 TRPG 版本邏輯)
     const generateContentWithConfig = async (payload, aiConfig) => {
-      const modelName = aiConfig.model || 'gemini-2.5-flash-preview-09-2025';
+      const modelName = (aiConfig && aiConfig.model) ? aiConfig.model : 'gemini-2.5-flash-preview-09-2025';
       let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
       let headers = { 'Content-Type': 'application/json' };
       let fetchBodyData = payload;
 
-      if (aiConfig.provider === 'gcp') {
-        if (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject) {
-            throw new Error("請先上傳 GCP 服務帳號 JSON 檔案。");
+      if (aiConfig) {
+        if (aiConfig.provider === 'gcp') {
+          if (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject) {
+              throw new Error("請先上傳 GCP 服務帳號 JSON 檔案。");
+          }
+          
+          const region = aiConfig.gcpRegion || 'global';
+          const creds = aiConfig.gcpCreds.jsonObject;
+          const projectId = creds.project_id;
+          
+          const domain = (region === 'global') 
+              ? 'aiplatform.googleapis.com' 
+              : `${region}-aiplatform.googleapis.com`;
+
+          const targetUrl = `https://${domain}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${modelName}:generateContent`;
+
+          endpointUrl = `https://nai-proxy-ten.vercel.app/api/gemini`;
+          headers = { 'Content-Type': 'application/json' };
+          
+          fetchBodyData = {
+              credentials: {
+                  client_email: creds.client_email,
+                  private_key: creds.private_key,
+                  project_id: creds.project_id,
+                  ...creds 
+              },
+              geminiPayload: payload,
+              targetUrl: targetUrl,
+              region: region,
+              model: modelName
+          };
+        } else {
+          const key = aiConfig.aiStudioKey || apiKey;
+          endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
+          fetchBodyData = payload;
         }
-        
-        const region = aiConfig.gcpRegion || 'global';
-        const creds = aiConfig.gcpCreds.jsonObject;
-        const projectId = creds.project_id;
-        
-        const domain = (region === 'global') 
-            ? 'aiplatform.googleapis.com' 
-            : `${region}-aiplatform.googleapis.com`;
-
-        const targetUrl = `https://${domain}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${modelName}:generateContent`;
-
-        endpointUrl = `https://nai-proxy-ten.vercel.app/api/gemini`;
-        
-        fetchBodyData = {
-            credentials: {
-                client_email: creds.client_email,
-                private_key: creds.private_key,
-                project_id: creds.project_id,
-                ...creds 
-            },
-            geminiPayload: payload,
-            targetUrl: targetUrl,
-            region: region,
-            model: modelName
-        };
-      } else {
-        const key = aiConfig.aiStudioKey || apiKey;
-        endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
       }
 
       let retryCount = 0;
@@ -160,7 +164,7 @@
           });
           if (!response.ok) {
              const errText = await response.text();
-             throw new Error(`HTTP error! status: ${response.status} - ${errText}`);
+             throw new Error(`API 拒絕請求 (HTTP ${response.status}) - ${errText}`);
           }
           return await response.json();
         } catch (error) {
@@ -183,10 +187,16 @@
           try {
             const jsonString = event.target.result;
             const data = JSON.parse(jsonString);
+            
+            // 完全對齊 TRPG 的驗證條件與文字
             if (!data.project_id || !data.private_key || !data.client_email) {
-              throw new Error("JSON 缺少必要欄位。");
+              throw new Error("JSON 中缺少 project_id, private_key 或 client_email，請確認這是正確的 GCP 服務帳號金鑰檔案。");
             }
-            setAiConfig(prev => ({ ...prev, gcpCreds: { project_id: data.project_id, jsonObject: data } }));
+            
+            setAiConfig(prev => ({ 
+              ...prev, 
+              gcpCreds: { project_id: data.project_id, jsonObject: data } 
+            }));
             alert(`✅ 成功載入 GCP 專案: ${data.project_id}`);
           } catch (err) {
             alert("讀取 GCP JSON 失敗：" + err.message);
@@ -372,6 +382,12 @@
       };
 
       const processImage = (file) => {
+        // Pre-flight 檢查對齊 TRPG 邏輯
+        if (aiConfig.provider === 'gcp' && (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject)) {
+          setErrorMsg("您選擇了 GCP 引擎，請先至右側設定按鈕上傳您的 JSON 服務文件。");
+          return;
+        }
+
         setImageFile(file);
         setPreviewUrl(URL.createObjectURL(file));
         setTranslatedItems([]);
@@ -386,7 +402,7 @@
             await translateImageWithGemini(base64Data, file.type);
           } catch (err) {
             console.error(err);
-            setErrorMsg('翻譯失敗，請檢查網路狀態、API 設定或稍後再試。');
+            setErrorMsg(`翻譯失敗：${err.message}`);
             setIsProcessing(false);
           }
         };
@@ -433,7 +449,7 @@
           setTranslatedItems(JSON.parse(textResult));
           setIsProcessing(false);
         } else {
-          throw new Error("No text returned from API.");
+          throw new Error("API 返回結果為空。");
         }
       };
 
@@ -451,7 +467,7 @@
       useEffect(() => {
         window.addEventListener('paste', handlePaste);
         return () => window.removeEventListener('paste', handlePaste);
-      }, [targetLang]); 
+      }, [targetLang, aiConfig]); 
 
       const triggerClipboardRead = async () => {
         try {
@@ -521,7 +537,7 @@
 
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
 
-          {errorMsg && <div className="w-full max-w-4xl mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center shadow-sm">{errorMsg}</div>}
+          {errorMsg && <div className="w-full max-w-4xl mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center shadow-sm break-all">{errorMsg}</div>}
           
           {showPasteHelper && (
             <div className="w-full max-w-4xl mb-4 p-4 bg-[#f0f9f7] border border-[#4bb59b] rounded-xl text-center shadow-sm">
@@ -655,6 +671,13 @@
         const file = e.target.files[0];
         if (!file) return;
 
+        // Pre-flight 檢查對齊 TRPG 邏輯
+        if (aiConfig.provider === 'gcp' && (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject)) {
+          setErrorMsg("您選擇了 GCP 引擎，請先至右側設定按鈕上傳您的 JSON 服務文件。");
+          e.target.value = '';
+          return;
+        }
+
         setErrorMsg('');
         const MAX_SIZE_MB = currentMode === 'video' ? 15 : 10;
         if (file.size > MAX_SIZE_MB * 1024 * 1024) {
@@ -711,8 +734,8 @@
           setTimeout(() => setStatus(null), 2500);
         } catch (error) {
           console.error(error);
-          setErrorMsg(`無法連接 AI 或檔案內容觸發了底層阻擋。${error.message}`);
-          setStatus({ title: "審查任務失敗", desc: "發生錯誤", isError: true });
+          setErrorMsg(`分析發生錯誤：${error.message}`);
+          setStatus({ title: "審查任務失敗", desc: "無法完成檢測", isError: true });
         } finally {
           setIsProcessing(false);
         }
@@ -809,7 +832,7 @@
                 </div>
 
                 {errorMsg && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm flex items-start gap-2">
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm flex items-start gap-2 break-all">
                     <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> <span>{errorMsg}</span>
                   </div>
                 )}
@@ -954,6 +977,12 @@
       };
 
       const callGemini = async (prompt, systemInstruction) => {
+        // Pre-flight 檢查對齊 TRPG 邏輯
+        if (aiConfig.provider === 'gcp' && (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject)) {
+          showToast("您選擇了 GCP 引擎，請先至右側設定按鈕上傳您的 JSON 服務文件。");
+          return "無法生成：缺少 GCP JSON。";
+        }
+
         const payload = { contents: [{ parts: [{ text: prompt }] }], systemInstruction: { parts: [{ text: systemInstruction }] } };
         const result = await generateContentWithConfig(payload, aiConfig);
         return result.candidates?.[0]?.content?.parts?.[0]?.text || "無回應或發生錯誤。";
@@ -1024,7 +1053,7 @@
         try {
           const translation = await callGemini(`你是一個專業的多語系翻譯助理。請將以下這段外文訊息（這是一位客戶發給插畫師的溝通內容），精準地翻譯成繁體中文：\n\n${clientMessage}`, "你是一位精通多國語言的專業翻譯助理。");
           setTranslatedMessage(translation);
-        } catch { showToast("翻譯失敗，請檢查API設定後重試"); } finally { setIsTranslating(false); }
+        } catch (err) { showToast(`翻譯失敗: ${err.message}`); } finally { setIsTranslating(false); }
       };
 
       const handleGenerateReply = async () => {
@@ -1035,7 +1064,7 @@
           const clientContext = clientMessage.trim() ? `【前情提要：客戶剛才發來的訊息】\n${clientMessage}\n\n` : `【這是一條主動發起的新對話或提問】\n`;
           const reply = await callGemini(`${clientContext}【我想表達的意思（繁體中文草稿）】\n${myIntent}\n\n請根據我的草稿幫我寫一封完美的 ${LANG_CONFIG[clientLang].name} 溝通訊息。`, dynamicSystemPrompt);
           setGeneratedReply(reply.replace(/\*\*/g, '').replace(/\*/g, '').replace(/#/g, ''));
-        } catch { showToast("生成訊息失敗，請檢查API設定後重試"); } finally { setIsGenerating(false); }
+        } catch (err) { showToast(`生成訊息失敗: ${err.message}`); } finally { setIsGenerating(false); }
       };
 
       const handleCopy = (text) => {
