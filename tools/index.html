@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>個人 AI 小工具合集 (整合高階 API 引擎設定)</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans TC', sans-serif; background-color: #f4f2eb; }
+    
+    /* 修正 Phosphor 圖標垂直置中對齊 */
+    i.ph {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      line-height: 1;
+    }
+
+    .wakfu-panel {
+      background: #ffffff;
+      border: 2px solid #e5e1d8;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    }
+    
+    .wakfu-btn {
+      background: linear-gradient(180deg, #5dd5b6 0%, #46aa91 100%);
+      border: 1px solid #368571;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.1);
+      color: white;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+    }
+    .wakfu-btn:hover:not(:disabled) { background: linear-gradient(180deg, #6ae0c2 0%, #4eb59c 100%); }
+    .wakfu-btn:active:not(:disabled) { box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); transform: translateY(1px); }
+    .wakfu-btn:disabled { filter: grayscale(100%); opacity: 0.7; cursor: not-allowed; }
+
+    .wakfu-header-ornament { position: relative; text-align: center; }
+    .wakfu-header-ornament::before, .wakfu-header-ornament::after {
+      content: ''; position: absolute; top: 50%; width: 40px; height: 12px;
+      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 30"><path d="M0,15 Q25,0 50,15 T100,15" fill="none" stroke="%23c4bfb3" stroke-width="6" stroke-linecap="round"/></svg>') no-repeat center;
+    }
+    .wakfu-header-ornament::before { left: 50%; transform: translateX(-160%) translateY(-50%); }
+    .wakfu-header-ornament::after { right: 50%; transform: translateX(160%) translateY(-50%) scaleX(-1); }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #dcd7cb; border-radius: 3px; }
+
+    /* For specific background pattern */
+    .bg-dotted-pattern {
+      background-image: radial-gradient(#e5e1d8 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, createContext, useContext } = React;
+
+    // ==========================================
+    // 圖標映射 (對應 Lucide 到 Phosphor Icons)
+    // ==========================================
+    const Languages = ({className}) => <i className={`ph ph-translate ${className}`}></i>;
+    const Calculator = ({className}) => <i className={`ph ph-calculator ${className}`}></i>;
+    const Copy = ({className}) => <i className={`ph ph-copy ${className}`}></i>;
+    const AlertCircle = ({className}) => <i className={`ph ph-warning-circle ${className}`}></i>;
+    const CheckCircle2 = ({className}) => <i className={`ph ph-check-circle ${className}`}></i>;
+    const Loader2 = ({className}) => <i className={`ph ph-spinner ${className}`}></i>;
+    const Sparkles = ({className}) => <i className={`ph ph-sparkle ${className}`}></i>;
+    const Video = ({className}) => <i className={`ph ph-video-camera ${className}`}></i>;
+    const ShieldAlert = ({className}) => <i className={`ph ph-shield-warning ${className}`}></i>;
+    const Globe = ({className}) => <i className={`ph ph-globe ${className}`}></i>;
+    const Settings2 = ({className}) => <i className={`ph ph-sliders ${className}`}></i>;
+    const RotateCcw = ({className}) => <i className={`ph ph-arrow-counter-clockwise ${className}`}></i>;
+    const ChevronUp = ({className}) => <i className={`ph ph-caret-up ${className}`}></i>;
+    const ChevronDown = ({className}) => <i className={`ph ph-caret-down ${className}`}></i>;
+    const MessageSquareText = ({className}) => <i className={`ph ph-chat-text ${className}`}></i>;
+    const MailOpen = ({className}) => <i className={`ph ph-envelope-open ${className}`}></i>;
+    const FileText = ({className}) => <i className={`ph ph-file-text ${className}`}></i>;
+    const Receipt = ({className}) => <i className={`ph ph-receipt ${className}`}></i>;
+    const ImageIcon = ({className}) => <i className={`ph ph-image ${className}`}></i>;
+    const Film = ({className}) => <i className={`ph ph-film-strip ${className}`}></i>;
+    const RefreshCw = ({className}) => <i className={`ph ph-arrows-clockwise ${className}`}></i>;
+    const FileCheck2 = ({className}) => <i className={`ph ph-file-check ${className}`}></i>;
+    const Search = ({className}) => <i className={`ph ph-magnifying-glass ${className}`}></i>;
+    const Cpu = ({className}) => <i className={`ph ph-cpu ${className}`}></i>;
+    const Upload = ({className}) => <i className={`ph ph-upload-simple ${className}`}></i>;
+    const X = ({className}) => <i className={`ph ph-x ${className}`}></i>;
+
+    // ==========================================
+    // 全域變數與 Context (API 設定)
+    // ==========================================
+    const apiKey = ""; // 畫布內建預設 apiKey 或手動輸入
+    const ApiConfigContext = createContext(null);
+
+    // 核心統一請求函式 (含 AI Studio / GCP / Proxy 邏輯)
+    const generateContentWithConfig = async (payload, aiConfig) => {
+      const modelName = aiConfig.model || 'gemini-2.5-flash-preview-09-2025';
+      let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      let headers = { 'Content-Type': 'application/json' };
+      let fetchBodyData = payload;
+
+      if (aiConfig.provider === 'gcp') {
+        if (!aiConfig.gcpCreds || !aiConfig.gcpCreds.jsonObject) {
+            throw new Error("請先上傳 GCP 服務帳號 JSON 檔案。");
+        }
+        
+        const region = aiConfig.gcpRegion || 'global';
+        const creds = aiConfig.gcpCreds.jsonObject;
+        const projectId = creds.project_id;
+        
+        const domain = (region === 'global') 
+            ? 'aiplatform.googleapis.com' 
+            : `${region}-aiplatform.googleapis.com`;
+
+        const targetUrl = `https://${domain}/v1/projects/${projectId}/locations/${region}/publishers/google/models/${modelName}:generateContent`;
+
+        endpointUrl = `https://nai-proxy-ten.vercel.app/api/gemini`;
+        
+        fetchBodyData = {
+            credentials: {
+                client_email: creds.client_email,
+                private_key: creds.private_key,
+                project_id: creds.project_id,
+                ...creds 
+            },
+            geminiPayload: payload,
+            targetUrl: targetUrl,
+            region: region,
+            model: modelName
+        };
+      } else {
+        const key = aiConfig.aiStudioKey || apiKey;
+        endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
+      }
+
+      let retryCount = 0;
+      while (retryCount < 3) {
+        try {
+          const response = await fetch(endpointUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(fetchBodyData)
+          });
+          if (!response.ok) {
+             const errText = await response.text();
+             throw new Error(`HTTP error! status: ${response.status} - ${errText}`);
+          }
+          return await response.json();
+        } catch (error) {
+          retryCount++;
+          if (retryCount === 3) throw error;
+          await new Promise(res => setTimeout(res, 1000 * retryCount));
+        }
+      }
+    };
+
+    // ==========================================
+    // 隱蔽的全域設定 Modal UI
+    // ==========================================
+    function GlobalSettingsModal({ aiConfig, setAiConfig, onClose }) {
+      const handleGcpJsonUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const jsonString = event.target.result;
+            const data = JSON.parse(jsonString);
+            if (!data.project_id || !data.private_key || !data.client_email) {
+              throw new Error("JSON 缺少必要欄位。");
+            }
+            setAiConfig(prev => ({ ...prev, gcpCreds: { project_id: data.project_id, jsonObject: data } }));
+            alert(`✅ 成功載入 GCP 專案: ${data.project_id}`);
+          } catch (err) {
+            alert("讀取 GCP JSON 失敗：" + err.message);
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border-2 border-[#e5e1d8] flex flex-col transform transition-all">
+            <div className="p-4 border-b-2 border-[#f4f2eb] flex justify-between items-center bg-[#f9f8f4] rounded-t-2xl">
+              <h2 className="text-base font-bold text-[#4d483f] flex items-center">
+                <Cpu className="w-5 h-5 mr-2 text-[#4bb59b]"/> API / 系統底層模型設置
+              </h2>
+              <button onClick={onClose} className="text-[#8c867a] hover:text-[#e60012] transition-colors flex items-center justify-center p-1"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh] custom-scrollbar">
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-[#4d483f]">
+                  <input type="radio" value="aistudio" checked={aiConfig.provider === 'aistudio'} onChange={() => setAiConfig({...aiConfig, provider: 'aistudio'})} className="accent-[#4bb59b] w-4 h-4" />
+                  AI STUDIO
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-[#4d483f]">
+                  <input type="radio" value="gcp" checked={aiConfig.provider === 'gcp'} onChange={() => setAiConfig({...aiConfig, provider: 'gcp'})} className="accent-[#4bb59b] w-4 h-4" />
+                  GCP (Vertex AI)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#6d675b] mb-1">推理模型 (Reasoning Model)</label>
+                <select value={aiConfig.model} onChange={e => setAiConfig({...aiConfig, model: e.target.value})} className="w-full bg-[#f9f8f4] border border-[#e5e1d8] p-2.5 rounded-lg text-sm text-[#4d483f] focus:outline-none focus:border-[#4bb59b]">
+                  <option value="gemini-2.5-flash-preview-09-2025">Gemini 2.5 Flash Preview 09-2025 (預設)</option>
+                  <option value="gemini-2.5-flash-preview">Gemini 2.5 Flash Preview</option>
+                  <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                  <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
+                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
+                  <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+                </select>
+              </div>
+
+              {aiConfig.provider === 'aistudio' && (
+                <div className="animate-in fade-in duration-200">
+                  <label className="block text-sm font-bold text-[#6d675b] mb-1">API KEY</label>
+                  <input type="password" value={aiConfig.aiStudioKey} onChange={e => setAiConfig({...aiConfig, aiStudioKey: e.target.value})} placeholder="留空則使用環境內建預設 KEY" className="w-full bg-[#f9f8f4] border border-[#e5e1d8] p-2.5 rounded-lg text-sm text-[#4d483f] focus:outline-none focus:border-[#4bb59b]" />
+                </div>
+              )}
+
+              {aiConfig.provider === 'gcp' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div>
+                    <label className="block text-sm font-bold text-[#6d675b] mb-2">GCP 服務帳號金鑰 (JSON)</label>
+                    <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-[#c4bfb3] hover:border-[#4bb59b] bg-[#f9f8f4] hover:bg-white rounded-xl transition cursor-pointer">
+                      {aiConfig.gcpCreds ? (
+                        <span className="text-[#368571] font-bold text-sm flex items-center">
+                          ✅ 已載入: {aiConfig.gcpCreds.project_id}
+                        </span>
+                      ) : (
+                        <span className="text-[#8c867a] font-bold text-sm flex items-center">
+                          <Upload className="w-5 h-5 mr-2"/> 點擊上傳 JSON 服務文件
+                        </span>
+                      )}
+                      <input type="file" accept=".json" className="hidden" onChange={handleGcpJsonUpload} />
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#6d675b] mb-1">GCP 服務區域 (Region)</label>
+                    <select value={aiConfig.gcpRegion} onChange={e => setAiConfig({...aiConfig, gcpRegion: e.target.value})} className="w-full bg-[#f9f8f4] border border-[#e5e1d8] p-2.5 rounded-lg text-sm text-[#4d483f] focus:outline-none focus:border-[#4bb59b]">
+                      <option value="global">global</option>
+                      <option value="us-central1">us-central1</option>
+                      <option value="asia-east1">asia-east1</option>
+                      <option value="asia-northeast1">asia-northeast1</option>
+                      <option value="europe-west1">europe-west1</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 bg-[#f9f8f4] border-t border-[#e5e1d8] flex justify-end">
+              <button onClick={onClose} className="wakfu-btn px-6 py-2 rounded-lg text-sm font-bold transition-colors">確認並關閉</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 系統一：AI 感知翻譯系統 (App1_Translation)
+    // ==========================================
+    function TranslatedBox({ item }) {
+      const [showOriginal, setShowOriginal] = useState(false);
+      const timerRef = useRef(null);
+
+      const handleActivate = () => {
+        setShowOriginal(true);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          setShowOriginal(false);
+        }, 2000);
+      };
+
+      useEffect(() => {
+        return () => {
+          if (timerRef.current) clearTimeout(timerRef.current);
+        };
+      }, []);
+
+      return (
+        <div 
+          className={`absolute rounded-xl backdrop-blur-md bg-white/95 border shadow-lg text-[#333] text-xs sm:text-sm md:text-base font-medium tracking-wide pointer-events-auto transition-colors duration-300 ${
+            item.orientation === 'vertical' 
+              ? 'py-3 px-2 max-h-[160px] sm:max-h-[220px] md:max-h-[300px]' 
+              : 'py-2 px-3 max-w-[140px] sm:max-w-[200px] md:max-w-[280px]'
+          } ${showOriginal ? 'z-[60] border-[#4bb59b] shadow-[0_0_15px_rgba(75,181,155,0.4)]' : 'z-20 border-[#e5e1d8]'}`}
+          style={{
+            left: `${Math.min(Math.max(item.center_x, 5), 95)}%`,
+            top: `${Math.min(Math.max(item.center_y, 5), 95)}%`,
+            transform: 'translate(-50%, -50%)',
+            writingMode: item.orientation === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+            textOrientation: item.orientation === 'vertical' ? 'upright' : 'mixed',
+          }}
+          onPointerEnter={handleActivate}
+          onPointerMove={handleActivate}
+          onTouchStart={handleActivate}
+        >
+          <p className="break-words whitespace-pre-wrap" style={{ lineHeight: '1.5' }}>
+            {item.text}
+          </p>
+
+          <div 
+            className={`absolute bg-[#f9f8f4] border border-[#dcd7cb] text-[#555] p-2 sm:p-3 rounded-lg shadow-xl pointer-events-none transition-opacity duration-700 ease-in-out font-sans ${
+              showOriginal ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{
+              writingMode: item.orientation === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+              textOrientation: item.orientation === 'vertical' ? 'upright' : 'mixed',
+              maxHeight: item.orientation === 'vertical' ? '250px' : 'none',
+              maxWidth: '250px',
+              minWidth: item.orientation === 'horizontal' ? '120px' : 'auto',
+              width: item.orientation === 'horizontal' ? 'max-content' : 'auto',
+              lineHeight: '1.6',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+              fontSize: '0.8rem',
+              ...(item.orientation === 'vertical' 
+                ? { right: '100%', top: '0', marginRight: '8px' } 
+                : { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '8px' }
+              )
+            }}
+          >
+            {item.original_text}
+          </div>
+        </div>
+      );
+    }
+
+    function App1_Translation() {
+      const aiConfig = useContext(ApiConfigContext);
+      const [imageFile, setImageFile] = useState(null);
+      const [previewUrl, setPreviewUrl] = useState(null);
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [translatedItems, setTranslatedItems] = useState([]);
+      const [targetLang, setTargetLang] = useState('繁體中文');
+      const [errorMsg, setErrorMsg] = useState('');
+      const [showPasteHelper, setShowPasteHelper] = useState(false);
+      const [isHidden, setIsHidden] = useState(false);
+
+      const fileInputRef = useRef(null);
+      const pressTimerRef = useRef(null);
+
+      const languages = [
+        "繁體中文", "简体中文", "English", "日本語", "한국어", 
+        "Français", "Deutsch", "Español", "Русский", "Tiếng Việt", 
+        "ภาษาไทย", "Bahasa Indonesia", "Italiano", "Português", "العربية"
+      ];
+
+      const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) processImage(file);
+      };
+
+      const processImage = (file) => {
+        setImageFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+        setTranslatedItems([]);
+        setErrorMsg('');
+        setIsProcessing(true);
+        setShowPasteHelper(false);
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            const base64Data = reader.result.split(',')[1];
+            await translateImageWithGemini(base64Data, file.type);
+          } catch (err) {
+            console.error(err);
+            setErrorMsg('翻譯失敗，請檢查網路狀態、API 設定或稍後再試。');
+            setIsProcessing(false);
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const translateImageWithGemini = async (base64Data, mimeType) => {
+        const systemPrompt = `你是一名專業翻譯。你的任務是準確、自然地翻譯給定的圖片文字。
+具體規則如下：
+1、將文本翻譯成指定的目標語言。保持原意和語氣。直接返回翻譯後的文本。
+2、【關鍵排版要求】偵測每個文字區塊的排版方向。如果是日文漫畫常見的「由上往下的直書」，orientation 標記為 "vertical"；若是橫書則為 "horizontal"。
+3、【智能合併斷行】請忽略原圖中因為排版空間狹小而產生的「人為強制斷行」（例如漫畫中每兩個字就斷行）。將屬於同一句話的文字合併為完整句子。只有在遇到真正的段落分隔、不同語句轉折時，才保留換行符號 (\\n)。
+4、計算每個文字區塊視覺中心在原圖的 X 與 Y 座標百分比 (0到100之間的整數)。
+5、提取並保留原始語言的文字內容 (original_text)，供雙語對照使用。
+6、【嚴格閱讀順序】請務必按照人類自然的閱讀順序（例如日文漫畫的從上到下、由右至左；或文章的從上到下、由左至右）來排列返回的 JSON 陣列物件順序。數組的第一個元素必須是讀者最先閱讀的文本。`;
+
+        const userPrompt = `請找出圖片中所有的文字區塊，並將其翻譯為「${targetLang}」。`;
+
+        const schema = {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              text: { type: "STRING", description: "翻譯後的文字，已智能合併不必要的換行" },
+              original_text: { type: "STRING", description: "提取的原始語言文字，已智能合併不必要的換行" },
+              center_x: { type: "INTEGER", description: "視覺中心點 X 座標百分比 (0-100)" },
+              center_y: { type: "INTEGER", description: "視覺中心點 Y 座標百分比 (0-100)" },
+              orientation: { type: "STRING", description: "排版方向：填寫 'vertical' 或 'horizontal'" }
+            },
+            required: ["text", "original_text", "center_x", "center_y", "orientation"]
+          }
+        };
+
+        const payload = {
+          contents: [{ role: "user", parts: [{ text: userPrompt }, { inlineData: { mimeType: mimeType, data: base64Data } }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.1 }
+        };
+
+        const result = await generateContentWithConfig(payload, aiConfig);
+        const textResult = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (textResult) {
+          setTranslatedItems(JSON.parse(textResult));
+          setIsProcessing(false);
+        } else {
+          throw new Error("No text returned from API.");
+        }
+      };
+
+      const handlePaste = (e) => {
+        const items = e.clipboardData?.items || e.originalEvent?.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (item.type.indexOf('image/') !== -1) {
+            processImage(item.getAsFile());
+            break;
+          }
+        }
+      };
+
+      useEffect(() => {
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+      }, [targetLang]); 
+
+      const triggerClipboardRead = async () => {
+        try {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const clipboardItem of clipboardItems) {
+            const imageTypes = clipboardItem.types.filter(type => type.startsWith('image/'));
+            if (imageTypes.length > 0) {
+              const blob = await clipboardItem.getType(imageTypes[0]);
+              processImage(new File([blob], "pasted-image.png", { type: blob.type }));
+              return;
+            }
+          }
+          setErrorMsg('剪貼簿中沒有找到圖片。');
+        } catch (err) {
+          setShowPasteHelper(true);
+          setErrorMsg('環境限制直接讀取。請在下方輸入框長按並選擇「貼上」，或使用快捷鍵 Ctrl+V。');
+        }
+      };
+
+      const handlePointerDown = (e) => {
+        if (e.button !== 0 && e.type !== 'touchstart') return; 
+        pressTimerRef.current = setTimeout(() => {
+          setIsHidden(true); 
+          pressTimerRef.current = null;
+        }, 200);
+      };
+
+      const handlePointerUp = () => {
+        if (pressTimerRef.current) {
+          clearTimeout(pressTimerRef.current);
+          fileInputRef.current?.click(); 
+        } else setIsHidden(false);
+      };
+
+      const handlePointerLeave = () => {
+        if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+        setIsHidden(false); 
+      };
+
+      return (
+        <div className="flex flex-col items-center overflow-x-hidden animate-in fade-in">
+          <div className="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <h2 className="text-xl font-bold text-[#4d483f] flex items-center gap-2">
+              <Search className="w-6 h-6 text-[#4bb59b]" />
+              空間感知翻譯系統
+            </h2>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="bg-white border-2 border-[#e5e1d8] text-sm rounded-lg focus:ring-[#4bb59b] focus:border-[#4bb59b] block p-2 text-[#4d483f] outline-none shadow-sm">
+                {languages.map(lang => <option key={lang} value={lang}>{lang}</option>)}
+              </select>
+              <button onClick={() => fileInputRef.current?.click()} className="wakfu-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                選擇圖片
+              </button>
+              <button onClick={triggerClipboardRead} className="px-4 py-2 bg-white hover:bg-[#f9f8f4] border-2 border-[#4bb59b] text-[#368571] rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <Copy className="w-4 h-4" />
+                貼上新圖
+              </button>
+            </div>
+          </div>
+
+          <div className="w-full max-w-4xl flex items-center justify-center gap-2 mb-6 text-xs sm:text-sm text-[#8c867a]">
+            <span className="flex items-center gap-1"><kbd className="px-1.5 py-0.5 bg-white rounded border border-[#dcd7cb] shadow-sm">滑過文本</kbd> 顯示原文</span>
+            <span className="text-[#dcd7cb]">•</span>
+            <span className="flex items-center gap-1"><kbd className="px-1.5 py-0.5 bg-white rounded border border-[#dcd7cb] shadow-sm">長按圖片</kbd> 暫時隱藏</span>
+          </div>
+
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+
+          {errorMsg && <div className="w-full max-w-4xl mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center shadow-sm">{errorMsg}</div>}
+          
+          {showPasteHelper && (
+            <div className="w-full max-w-4xl mb-4 p-4 bg-[#f0f9f7] border border-[#4bb59b] rounded-xl text-center shadow-sm">
+              <p className="text-[#368571] mb-2 text-sm font-bold">💡 請在下方輸入框長按並選擇「貼上」：</p>
+              <input type="text" className="w-full max-w-md bg-white border border-[#4bb59b] rounded-lg px-4 py-2 text-[#4d483f] outline-none focus:ring-2 focus:ring-[#4bb59b]" placeholder="點擊此處並長按貼上圖片..." onPaste={handlePaste} autoFocus />
+            </div>
+          )}
+
+          {!previewUrl ? (
+            <div className="w-full max-w-4xl h-96 border-2 border-dashed border-[#c4bfb3] hover:border-[#4bb59b] rounded-2xl flex flex-col items-center justify-center bg-white/50 cursor-pointer transition-colors shadow-sm" onClick={() => fileInputRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file && file.type.startsWith('image/')) processImage(file); }}>
+              <ImageIcon className="w-16 h-16 text-[#c4bfb3] mb-4" />
+              <p className="text-[#6d675b] text-lg mb-2 font-bold">點擊上傳、拖曳圖片至此</p>
+              <p className="text-[#8c867a] text-sm">支援 Ctrl+V 直接貼上</p>
+            </div>
+          ) : (
+            <div className="w-full max-w-4xl flex flex-col gap-6">
+              <div 
+                className="relative w-full rounded-2xl shadow-md overflow-visible bg-[#ebe7de] select-none cursor-pointer border-4 border-white"
+                style={{ WebkitTouchCallout: 'none' }} 
+                onContextMenu={(e) => e.preventDefault()} 
+                onPointerDown={handlePointerDown}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerLeave}
+              >
+                <img src={previewUrl} alt="Preview" draggable={false} className={`w-full h-auto block rounded-xl transition-all duration-500 ${isProcessing ? 'opacity-50 blur-[2px] scale-[1.01]' : 'opacity-100 scale-100'}`} />
+
+                {isProcessing && (
+                  <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden rounded-xl">
+                     <div className="absolute left-0 right-0 h-1 bg-[#4bb59b] shadow-[0_0_20px_5px_rgba(75,181,155,0.7)] animate-[scan_2.5s_cubic-bezier(0.4,0,0.2,1)_infinite] mix-blend-screen"></div>
+                     <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="px-6 py-3 rounded-full bg-white/90 text-[#368571] font-bold tracking-widest animate-pulse border-2 border-[#4bb59b] shadow-lg backdrop-blur-md">
+                          AI 空間感知處理中...
+                        </span>
+                     </div>
+                  </div>
+                )}
+
+                <div className={`transition-opacity duration-300 ${isHidden ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                  {!isProcessing && translatedItems.map((item, index) => (
+                    <TranslatedBox key={index} item={item} />
+                  ))}
+                </div>
+              </div>
+
+              {!isProcessing && translatedItems.length > 0 && (
+                <div className="w-full p-5 md:p-6 bg-white rounded-2xl border-2 border-[#e5e1d8] shadow-sm mt-2 mb-8">
+                  <h2 className="text-lg font-bold text-[#4d483f] mb-5 flex items-center gap-2 border-b-2 border-[#f4f2eb] pb-3">
+                    <Languages className="w-5 h-5 text-[#4bb59b]" />
+                    閱讀順序對照文本
+                  </h2>
+                  <div className="space-y-3">
+                    {translatedItems.map((item, idx) => (
+                      <div key={idx} className="flex gap-4 bg-[#f9f8f4] p-4 rounded-xl border border-[#e5e1d8] hover:border-[#4bb59b] transition-colors shadow-sm">
+                        <div className="shrink-0 w-7 h-7 bg-white border-2 border-[#4bb59b] text-[#368571] rounded-full flex items-center justify-center text-sm font-bold shadow-sm">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 flex flex-col gap-1.5 pt-0.5">
+                          <div className="text-[#8c867a] text-sm font-sans tracking-wide leading-relaxed break-words whitespace-pre-wrap">
+                            {item.original_text}
+                          </div>
+                          <div className="text-[#4d483f] text-base font-medium tracking-wide leading-relaxed break-words whitespace-pre-wrap">
+                            {item.text}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 系統二：X 媒體檢測評分系統 (App2_MediaScore)
+    // ==========================================
+    function App2_MediaScore() {
+      const aiConfig = useContext(ApiConfigContext);
+      const [currentMode, setCurrentMode] = useState('image');
+      const [media, setMedia] = useState({ url: '', base64: '', mime: '' });
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+      const [status, setStatus] = useState(null); 
+      const [results, setResults] = useState(null);
+      const [titleTab, setTitleTab] = useState('pov');
+      const [customTheme, setCustomTheme] = useState('');
+      const [isRegenerating, setIsRegenerating] = useState(false);
+
+      const fileInputRef = useRef(null);
+
+      const SYSTEM_INSTRUCTION = `你是一個極度嚴苛、吹毛求疵、帶著放大鏡檢視內容的 X (Twitter) 安全審查官員兼資深日文 SNS 運營專家。你的任務是評估使用者上傳的媒體（圖片或影片），並給出「極其嚴格」的分數，以及符合 X 生態的日文發文標題。【特別指令：加倍思考】你必須放棄“If you already have all the information you need”的草率思想。如果上傳的是影片，你必須逐幀檢視，任何一閃而過、哪怕只有零點幾秒的違規元素，都必須被你揪出來並嚴厲扣分！
+總分100分，分為5大項，每項滿分20分。必須預設每份媒體都有潛在問題。除非完美無瑕，否則必須找理由扣分。增減分數精確到 1 分。請給出「極度具體且挑剔」的給分與扣分理由。
+5大審查項：1. 成人內容與裸露 2. 暴力與血腥 3. 未經同意的私密影像與換臉 4. 兒童安全 5. 版權與仿冒
+【標題生成規則】不管媒體合不合規，都必須提供 10 個日文發布標題建議（附繁體中文翻譯）。5 個「角色第一人稱口吻」，5 個「普通貼文」。`;
+
+      const responseSchema = {
+        type: "OBJECT",
+        properties: {
+          scores: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                category: { type: "STRING" },
+                score: { type: "INTEGER" },
+                reason: { type: "STRING" }
+              },
+              required: ["category", "score", "reason"]
+            }
+          },
+          totalScore: { type: "INTEGER" },
+          titlesCharacter: { type: "ARRAY", items: { type: "OBJECT", properties: { jp: { type: "STRING" }, zh: { type: "STRING" } }, required: ["jp", "zh"] } },
+          titlesNormal: { type: "ARRAY", items: { type: "OBJECT", properties: { jp: { type: "STRING" }, zh: { type: "STRING" } }, required: ["jp", "zh"] } }
+        },
+        required: ["scores", "totalScore", "titlesCharacter", "titlesNormal"]
+      };
+
+      const handleModeSwitch = (mode) => {
+        if (isProcessing) return;
+        setCurrentMode(mode);
+        setMedia({ url: '', base64: '', mime: '' });
+        setResults(null);
+        setErrorMsg('');
+        setStatus(null);
+      };
+
+      const handleFileChange = (e) => {
+        if (isProcessing) return;
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setErrorMsg('');
+        const MAX_SIZE_MB = currentMode === 'video' ? 15 : 10;
+        if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+          setErrorMsg(`檔案太大！請小於 ${MAX_SIZE_MB}MB。請壓縮後再試。`);
+          e.target.value = '';
+          return;
+        }
+
+        if (currentMode === 'video' && !file.type.startsWith('video/')) {
+          setErrorMsg('請上傳影片格式檔案 (MP4, WEBM)。'); return;
+        }
+        if (currentMode === 'image' && !file.type.startsWith('image/')) {
+          setErrorMsg('請上傳圖片格式檔案 (JPG, PNG, WEBP)。'); return;
+        }
+
+        setResults(null);
+        setStatus({ title: "讀取與解析檔案中", desc: "正在轉換媒體格式...", isError: false });
+        setIsProcessing(true);
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64String = event.target.result;
+          const b64 = base64String.split(',')[1];
+          const mime = base64String.substring(base64String.indexOf(":") + 1, base64String.indexOf(";"));
+          setMedia({ url: base64String, base64: b64, mime: mime });
+          analyzeMedia(b64, mime);
+        };
+        reader.onerror = () => {
+          setErrorMsg('檔案讀取失敗，請更換檔案重試。');
+          setIsProcessing(false);
+          setStatus(null);
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const analyzeMedia = async (b64, mime) => {
+        const mediaTypeName = currentMode === 'video' ? '影片' : '圖片';
+        setStatus({ title: "AI 極嚴苛審查中", desc: `正在利用模型逐幀拆解分析${mediaTypeName}...`, isError: false });
+
+        const payload = {
+          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          contents: [{ role: "user", parts: [{ text: `請對這份媒體(${mediaTypeName})進行極度嚴苛的合規審查，並生成日文標題。請嚴格按照設定的 JSON 格式輸出。` }, { inlineData: { mimeType: mime, data: b64 } }] }],
+          generationConfig: { responseMimeType: "application/json", responseSchema: responseSchema, temperature: 0.1 }
+        };
+
+        try {
+          const result = await generateContentWithConfig(payload, aiConfig);
+          const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!textResponse) throw new Error("API 返回格式錯誤或被安全攔截");
+          
+          const data = JSON.parse(textResponse);
+          setResults(data);
+          setStatus({ title: "分析完成", desc: "檢測報告與標題已生成。", isError: false });
+          setTimeout(() => setStatus(null), 2500);
+        } catch (error) {
+          console.error(error);
+          setErrorMsg(`無法連接 AI 或檔案內容觸發了底層阻擋。${error.message}`);
+          setStatus({ title: "審查任務失敗", desc: "發生錯誤", isError: true });
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      const regenerateTitles = async () => {
+        if (!media.base64 || isProcessing || isRegenerating) return;
+        if (!customTheme.trim()) {
+          alert("請先輸入主題！");
+          return;
+        }
+
+        setIsRegenerating(true);
+        const regenSchema = {
+          type: "OBJECT",
+          properties: {
+            titlesCharacter: responseSchema.properties.titlesCharacter,
+            titlesNormal: responseSchema.properties.titlesNormal
+          },
+          required: ["titlesCharacter", "titlesNormal"]
+        };
+
+        const payload = {
+          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          contents: [{ role: "user", parts: [{ text: `請重新生成標題。忽略之前的評分任務。基於特定主題：【${customTheme}】，結合媒體畫面，生成 10 個日文標題。嚴格按照 JSON 格式輸出。` }, { inlineData: { mimeType: media.mime, data: media.base64 } }] }],
+          generationConfig: { responseMimeType: "application/json", responseSchema: regenSchema, temperature: 0.7 }
+        };
+
+        try {
+          const result = await generateContentWithConfig(payload, aiConfig);
+          const data = JSON.parse(result.candidates[0].content.parts[0].text);
+          setResults(prev => ({ ...prev, titlesCharacter: data.titlesCharacter, titlesNormal: data.titlesNormal }));
+        } catch (error) {
+          alert("重新生成失敗: " + error.message);
+        } finally {
+          setIsRegenerating(false);
+        }
+      };
+
+      const copyText = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try { document.execCommand('copy'); } catch(e){}
+        document.body.removeChild(textArea);
+      };
+
+      return (
+        <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 animate-in fade-in">
+          <div className="wakfu-panel p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-[#f4f2eb] rounded-full flex items-center justify-center text-[#4bb59b]">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#4d483f]">X 媒體檢測評分系統</h2>
+                <p className="text-sm text-[#8c867a] mt-1">極度嚴苛的 AI 審查 ✕ 雙語標題生成</p>
+              </div>
+            </div>
+            
+            <div className="flex bg-[#ebe7de] rounded-full p-1 border border-[#dcd7cb]">
+              <button onClick={() => handleModeSwitch('image')} className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center justify-center transition-colors ${currentMode === 'image' ? 'bg-white text-[#4bb59b] shadow-sm' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                <ImageIcon className="w-4 h-4 mr-2" /> 圖像
+              </button>
+              <button onClick={() => handleModeSwitch('video')} className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center justify-center transition-colors ${currentMode === 'video' ? 'bg-white text-[#4bb59b] shadow-sm' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                <Film className="w-4 h-4 mr-2" /> 影片
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-6">
+              <div className="wakfu-panel p-6 relative">
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept={currentMode === 'image' ? "image/jpeg, image/png, image/webp" : "video/mp4, video/webm"} className="hidden" />
+                
+                <div className={`relative overflow-hidden rounded-xl cursor-pointer transition-all min-h-[250px] flex justify-center items-center ${media.url ? 'bg-[#f4f2eb] border-2 border-[#e5e1d8]' : 'bg-[#f9f8f4] border-2 border-dashed border-[#c4bfb3] hover:border-[#4bb59b]'}`} onClick={() => !isProcessing && fileInputRef.current?.click()}>
+                  {!media.url && (
+                    <div className="text-center p-8 flex flex-col items-center">
+                      <div className="w-14 h-14 rounded-full bg-white border border-[#e5e1d8] flex items-center justify-center mb-4 shadow-sm text-[#c4bfb3]">
+                        {currentMode === 'image' ? <ImageIcon className="w-6 h-6" /> : <Film className="w-6 h-6" />}
+                      </div>
+                      <p className="text-lg font-bold text-[#6d675b]">點擊或拖曳上傳{currentMode === 'image' ? '圖片' : '短影片'}</p>
+                      <p className="text-sm text-[#8c867a] mt-2">
+                        {currentMode === 'image' ? '支援 JPG, PNG, WEBP\n最大建議 10MB' : '支援 MP4, WEBM\n嚴格限制 15MB 內 (API限制)'}
+                      </p>
+                    </div>
+                  )}
+
+                  {media.url && currentMode === 'image' && <img src={media.url} alt="Preview" className="w-full max-h-[400px] object-contain rounded-xl" />}
+                  {media.url && currentMode === 'video' && <video src={media.url} autoPlay loop muted playsInline className="w-full max-h-[400px] object-contain rounded-xl" />}
+                  
+                  {isProcessing && <div className="absolute inset-0 bg-[#4bb59b]/10 animate-pulse rounded-xl"></div>}
+                </div>
+
+                {errorMsg && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> <span>{errorMsg}</span>
+                  </div>
+                )}
+
+                {status && (
+                  <div className={`mt-6 flex items-center justify-between p-4 rounded-xl border ${status.isError ? 'bg-red-50 border-red-200' : 'bg-[#f0f9f7] border-[#4bb59b]/30'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${status.isError ? 'bg-red-100 text-red-500' : 'bg-white border border-[#4bb59b] text-[#4bb59b] shadow-sm'}`}>
+                        {status.isError ? <AlertCircle className="w-4 h-4" /> : (isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />)}
+                      </div>
+                      <div>
+                        <p className={`text-sm font-bold ${status.isError ? 'text-red-600' : 'text-[#368571]'}`}>{status.title}</p>
+                        <p className="text-xs text-[#6d675b] mt-1">{status.desc}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {results && (
+                <div className="wakfu-panel p-6 flex flex-col items-center text-center">
+                  <h3 className="text-lg font-bold text-[#4d483f] mb-6">X 平台合規總評分</h3>
+                  <div className="relative w-28 h-28 mb-4">
+                     <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                        <path className="text-[#ebe7de]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                        <path className={results.totalScore >= 80 ? 'text-[#4bb59b]' : (results.totalScore >= 60 ? 'text-amber-500' : 'text-red-500')} strokeDasharray={`${results.totalScore}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                     </svg>
+                     <div className="absolute inset-0 flex items-center justify-center text-3xl font-black text-[#4d483f]">{results.totalScore}</div>
+                  </div>
+                  <p className="font-bold text-lg mt-2">
+                    {results.totalScore >= 80 ? <span className="text-[#4bb59b]">狀態極佳 (安全發佈)</span> : 
+                     results.totalScore >= 60 ? <span className="text-amber-500">尚可接受 (注意細節)</span> : 
+                     <span className="text-red-500">高度風險 (不建議發佈)</span>}
+                  </p>
+                  <p className="text-xs text-[#8c867a] mt-2 max-w-xs">分數計算基於 5 項嚴苛指標，滿分 100 分。低於 60 分極可能面臨限流或封禁。</p>
+                </div>
+              )}
+            </div>
+
+            {results && (
+              <div className="flex flex-col gap-6">
+                <div className="wakfu-panel p-6">
+                  <h3 className="text-base font-bold mb-4 flex items-center gap-2 border-b-2 border-[#f4f2eb] pb-3 text-[#4d483f]">
+                    <FileCheck2 className="w-5 h-5 text-[#4bb59b]" /> 嚴苛審查明細
+                  </h3>
+                  <div className="flex flex-col gap-3">
+                    {results.scores.map((item, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-[#f9f8f4] border border-[#e5e1d8] hover:border-[#4bb59b] transition-colors shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-sm text-[#4d483f]">{item.category}</span>
+                            <span className={`font-black ${item.score >= 16 ? 'text-[#4bb59b]' : (item.score >= 12 ? 'text-amber-500' : 'text-red-500')}`}>{item.score} <span className="text-xs font-normal text-[#c4bfb3]">/20</span></span>
+                        </div>
+                        <p className="text-xs text-[#6d675b] leading-relaxed">{item.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="wakfu-panel p-6">
+                  <h3 className="text-base font-bold mb-4 flex items-center gap-2 border-b-2 border-[#f4f2eb] pb-3 text-[#4d483f]">
+                    <Sparkles className="w-5 h-5 text-[#4bb59b]" /> 推薦日文標題
+                  </h3>
+                  
+                  <div className="flex bg-[#ebe7de] rounded-lg p-1 border border-[#dcd7cb] mb-4">
+                    <button onClick={() => setTitleTab('pov')} className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center ${titleTab === 'pov' ? 'bg-white text-[#4bb59b] shadow-sm' : 'text-[#8c867a]'}`}>角色第一人稱</button>
+                    <button onClick={() => setTitleTab('normal')} className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center ${titleTab === 'normal' ? 'bg-white text-[#4bb59b] shadow-sm' : 'text-[#8c867a]'}`}>普通發佈貼文</button>
+                  </div>
+
+                  <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {(titleTab === 'pov' ? results.titlesCharacter : results.titlesNormal).map((t, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-[#f9f8f4] border border-[#e5e1d8] hover:border-[#4bb59b] flex flex-col gap-1.5 relative group shadow-sm">
+                        <p className="text-sm text-[#4d483f] font-bold break-words pr-8">{t.jp}</p>
+                        <p className="text-xs text-[#8c867a]">{t.zh}</p>
+                        <button onClick={() => copyText(t.jp)} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white border border-[#e5e1d8] hover:border-[#4bb59b] hover:text-[#4bb59b] text-[#8c867a] transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-sm">
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t-2 border-[#f4f2eb]">
+                    <label className="text-xs font-bold text-[#6d675b] mb-2 block">不滿意？輸入特定主題重新生成：</label>
+                    <div className="flex gap-2">
+                      <input type="text" value={customTheme} onChange={e=>setCustomTheme(e.target.value)} placeholder="例如：憂鬱的早晨..." className="flex-1 bg-[#f9f8f4] border border-[#e5e1d8] rounded-lg px-3 py-2 text-sm text-[#4d483f] outline-none focus:border-[#4bb59b]" />
+                      <button onClick={regenerateTitles} disabled={isRegenerating} className="wakfu-btn px-4 py-2 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+                        {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4" />} 重製
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 系統三：畫師委託報價系統 (App3_Commission)
+    // ==========================================
+    const LANG_CONFIG = {
+      'ja': { id: 'ja', name: '日文', curr: 'JPY', symbol: '¥', rate: 1, locale: 'ja-JP' },
+      'en': { id: 'en', name: '英文', curr: 'USD', symbol: '$', rate: 0.0068, locale: 'en-US' },
+      'ko': { id: 'ko', name: '韓文', curr: 'KRW', symbol: '₩', rate: 9.0, locale: 'ko-KR' },
+      'zh-TW': { id: 'zh-TW', name: '繁體中文', curr: 'TWD', symbol: 'NT$', rate: 0.21, locale: 'zh-TW' }
+    };
+
+    const I18N = {
+      'ja': { title: '【お見積り詳細】', base: '基本料金 (SFW)', nsfw: 'NSFW指定', comm: '商用利用', rev: 'イラスト修正', illusTotal: 'イラスト合計', video: '動画化', videoRev: '動画修正', videoTotal: '動画合計', total: '★合計金額' },
+      'en': { title: '【Quote Details】', base: 'Base Price (SFW)', nsfw: 'NSFW', comm: 'Commercial Use', rev: 'Illustration Revision', illusTotal: 'Illustration Total', video: 'Video Animation', videoRev: 'Video Revision', videoTotal: 'Video Total', total: '★ Total Amount' },
+      'ko': { title: '【견적 상세】', base: '기본 요금 (SFW)', nsfw: 'NSFW 지정', comm: '상업적 이용', rev: '일러스트 수정', illusTotal: '일러스트 합계', video: '영상화', videoRev: '영상 수정', videoTotal: '영상 합계', total: '★ 총 합계' },
+      'zh-TW': { title: '【報價明細】', base: '基本費用 (SFW)', nsfw: 'NSFW指定', comm: '商用授權', rev: '插圖修改', illusTotal: '插圖總計', video: '影片化', videoRev: '影片修改', videoTotal: '影片總計', total: '★ 總金額' },
+    };
+
+    const DEFAULT_PROFILE = "我是X上3.3萬粉的AIケモノ繪師Toynya，基本只創作SFW插圖。どうも～こちら可愛いケモノのキャラクターが好きなAIイラストレーターで、性別に関係なく可愛いなら好きです！\n主にケモショタのAIイラストを投稿します。";
+    const DEFAULT_RULES = "單張插圖的預算在5,000円〜15,000円，15,000円封頂，最多修改3次。\n\n不修改一鍵出圖5000円~10000円（視乎難度和複雜程度而定），每次修改加收25%（這也包括簡單的差分）。\n\n影片10秒，720P，插圖最終價格x3倍。（可修改1次，每次修改重新提供新影片，每次修改最終價格再額外x1.25）\n\n如果是NSFW委託價格基礎插圖定價X2，但是不是很有意願接，而且必須非公開。\n商用基礎插圖定價X2，而且必須公開。\n非商用和非NSFW，可以自由決定是否公開，公開的情況下不能有強引導性質宣傳，比如誘導人從我的貼文去關注指定賬號。不過如果只是署名@委託人是完全沒問題的。\n\n因為是AI插圖所以不提供PSD和圖層差分";
+
+    function App3_Commission() {
+      const aiConfig = useContext(ApiConfigContext);
+      const [showSettings, setShowSettings] = useState(false);
+      const [personaProfile, setPersonaProfile] = useState(DEFAULT_PROFILE);
+      const [commissionRules, setCommissionRules] = useState(DEFAULT_RULES);
+      const [clientLang, setClientLang] = useState('ja');
+      const [clientMessage, setClientMessage] = useState("");
+      const [translatedMessage, setTranslatedMessage] = useState("");
+      const [myIntent, setMyIntent] = useState("");
+      const [generatedReply, setGeneratedReply] = useState("");
+      const [isTranslating, setIsTranslating] = useState(false);
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [toastMsg, setToastMsg] = useState("");
+      
+      const [basePriceJPY, setBasePriceJPY] = useState(5000);
+      const [revisions, setRevisions] = useState(0); 
+      const [isNSFW, setIsNSFW] = useState(false);
+      const [isCommercial, setIsCommercial] = useState(false);
+      const [isVideo, setIsVideo] = useState(false);
+      const [videoRevisions, setVideoRevisions] = useState(0); 
+
+      const showToast = (msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(""), 3000);
+      };
+
+      const callGemini = async (prompt, systemInstruction) => {
+        const payload = { contents: [{ parts: [{ text: prompt }] }], systemInstruction: { parts: [{ text: systemInstruction }] } };
+        const result = await generateContentWithConfig(payload, aiConfig);
+        return result.candidates?.[0]?.content?.parts?.[0]?.text || "無回應或發生錯誤。";
+      };
+
+      const formatCurr = (jpyValue, langId) => {
+        const config = LANG_CONFIG[langId];
+        const converted = Math.round(jpyValue * config.rate); 
+        return new Intl.NumberFormat(config.locale, { style: 'currency', currency: config.curr, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(converted);
+      };
+
+      const calculatePrice = () => {
+        let currentBase = basePriceJPY;
+        if (isNSFW) currentBase *= 2;
+        if (isCommercial) currentBase *= 2;
+        
+        const revisionCost = currentBase * 0.25 * revisions;
+        const illustrationTotal = currentBase + revisionCost;
+
+        let finalTotal = illustrationTotal;
+        let videoCost = 0;
+        let videoRevCost = 0;
+
+        if (isVideo) {
+          videoCost = illustrationTotal * 3;
+          videoRevCost = videoCost * 0.25 * videoRevisions;
+          finalTotal = videoCost + videoRevCost;
+        }
+
+        const t = I18N[clientLang] || I18N['ko']; 
+        let breakdown = `${t.title}\n`;
+        breakdown += `・${t.base || '基本料金'}: ${formatCurr(basePriceJPY, clientLang)}\n`;
+        if (isNSFW) breakdown += `・${t.nsfw} (x2): +${formatCurr(basePriceJPY, clientLang)}\n`;
+        if (isCommercial) breakdown += `・${t.comm} (x2): +${formatCurr(basePriceJPY * (isNSFW ? 2 : 1), clientLang)}\n`;
+        if (revisions > 0) breakdown += `・${t.rev} (${revisions} / 25%): +${formatCurr(revisionCost, clientLang)}\n`;
+        
+        if (isVideo) {
+          breakdown += `・${t.illusTotal}: ${formatCurr(illustrationTotal, clientLang)}\n`;
+          breakdown += `・${t.video} (10s 720P): ${formatCurr(videoCost, clientLang)}\n`;
+          if (videoRevisions > 0) breakdown += `・${t.videoRev} (${videoRevisions} / 25%): +${formatCurr(videoRevCost, clientLang)}\n`;
+          breakdown += `・${t.videoTotal}: ${formatCurr(videoCost + videoRevCost, clientLang)}\n`;
+        }
+        breakdown += `\n${t.total}: ${formatCurr(finalTotal, clientLang)}`;
+        return { totalJPY: finalTotal, breakdown };
+      };
+
+      const pricingResult = calculatePrice();
+
+      const getLocalizedGeneralRules = () => {
+        const config = LANG_CONFIG[clientLang];
+        if (clientLang === 'ja') return commissionRules;
+        const regex = /([0-9,]+)(?:\s*(?:円|JPY))?(?:\s*(?:〜|~|～|-)\s*([0-9,]+))?\s*(?:円|JPY)/g;
+        return commissionRules.replace(regex, (match, p1, p2) => {
+          const num1 = parseInt(p1.replace(/,/g, ''), 10);
+          if (isNaN(num1)) return match;
+          const formatVal = (val) => new Intl.NumberFormat(config.locale, { style: 'currency', currency: config.curr, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(val * config.rate));
+          if (p2) {
+            const num2 = parseInt(p2.replace(/,/g, ''), 10);
+            if (!isNaN(num2)) return `${formatVal(num1)} ~ ${formatVal(num2)}`;
+          }
+          return formatVal(num1);
+        });
+      };
+
+      const handleTranslate = async () => {
+        if (!clientMessage.trim()) return showToast("請輸入需要翻譯的訊息");
+        setIsTranslating(true);
+        try {
+          const translation = await callGemini(`你是一個專業的多語系翻譯助理。請將以下這段外文訊息（這是一位客戶發給插畫師的溝通內容），精準地翻譯成繁體中文：\n\n${clientMessage}`, "你是一位精通多國語言的專業翻譯助理。");
+          setTranslatedMessage(translation);
+        } catch { showToast("翻譯失敗，請檢查API設定後重試"); } finally { setIsTranslating(false); }
+      };
+
+      const handleGenerateReply = async () => {
+        if (!myIntent.trim()) return showToast("請輸入您想說的話");
+        setIsGenerating(true);
+        try {
+          const dynamicSystemPrompt = `請以知名插畫師 Toynya 的身份撰寫專業溝通訊息。\n[簡介]: ${personaProfile}\n[防呆依據]: 你的預設規則如右: ${commissionRules}\n1. 雙向溝通：根據草稿生成 ${LANG_CONFIG[clientLang].name} 回覆。\n2. 尊重草稿：絕對不要自作主張加入草稿中沒有的具體報價。\n3. 隱私保護：絕對禁止在信件中做自我介紹。\n4. 目標語言：必須完全使用 ${LANG_CONFIG[clientLang].name}。\n5. 純文字輸出：絕對禁止使用 Markdown。\n6. 鎖定幣別：草稿中若包含 ${LANG_CONFIG[clientLang].curr} 符號與金額，請完全保留，絕對不可轉換回日幣。\n7. 直接輸出信件內容。`;
+          const clientContext = clientMessage.trim() ? `【前情提要：客戶剛才發來的訊息】\n${clientMessage}\n\n` : `【這是一條主動發起的新對話或提問】\n`;
+          const reply = await callGemini(`${clientContext}【我想表達的意思（繁體中文草稿）】\n${myIntent}\n\n請根據我的草稿幫我寫一封完美的 ${LANG_CONFIG[clientLang].name} 溝通訊息。`, dynamicSystemPrompt);
+          setGeneratedReply(reply.replace(/\*\*/g, '').replace(/\*/g, '').replace(/#/g, ''));
+        } catch { showToast("生成訊息失敗，請檢查API設定後重試"); } finally { setIsGenerating(false); }
+      };
+
+      const handleCopy = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try { document.execCommand('copy'); showToast("已複製到剪貼簿！"); } catch(e){}
+        document.body.removeChild(textArea);
+      };
+
+      return (
+        <div className="w-full max-w-7xl mx-auto space-y-6 animate-in fade-in">
+          <header className="wakfu-panel p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-full bg-[#f4f2eb] flex items-center justify-center text-[#4bb59b] shrink-0">
+                <MessageSquareText className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold text-[#4d483f]">Toynya 報價交流系統</h1>
+                <p className="text-xs md:text-sm text-[#8c867a]">最新設定套用版・精準區分詢問與報價</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={() => setShowSettings(!showSettings)} className={`wakfu-btn px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center transition ${showSettings ? 'opacity-80' : ''}`}>
+                <Settings2 className="w-4 h-4 mr-2" />
+                <span>人設與規則設定</span>
+                {showSettings ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+              </button>
+              <div className="flex items-center space-x-2 bg-[#f9f8f4] p-2 rounded-xl border border-[#e5e1d8]">
+                <Globe className="w-4 h-4 text-[#8c867a]" />
+                <span className="text-sm font-bold text-[#6d675b] whitespace-nowrap">目標語系:</span>
+                <select value={clientLang} onChange={(e) => setClientLang(e.target.value)} className="bg-white border border-[#e5e1d8] text-sm font-bold rounded-lg px-2 py-1 focus:ring-2 focus:ring-[#4bb59b] outline-none text-[#4d483f]">
+                  {Object.entries(LANG_CONFIG).map(([key, config]) => <option key={key} value={key}>{config.name}</option>)}
+                </select>
+              </div>
+            </div>
+          </header>
+
+          {showSettings && (
+            <div className="wakfu-panel p-6 animate-in fade-in slide-in-from-top-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-[#4d483f] flex items-center">
+                  <Settings2 className="w-5 h-5 mr-2 text-[#4bb59b]" /> 專屬人設與報價規則設定
+                </h2>
+                <button onClick={() => {setPersonaProfile(DEFAULT_PROFILE); setCommissionRules(DEFAULT_RULES); showToast("設定已恢復");}} className="flex items-center justify-center text-sm font-bold text-[#8c867a] hover:text-[#4d483f]">
+                  <RotateCcw className="w-4 h-4 mr-1" /> 恢復預設
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#6d675b]">個人簡介 (僅供系統判斷語氣)</label>
+                  <textarea value={personaProfile} onChange={(e) => setPersonaProfile(e.target.value)} className="w-full h-40 p-3 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none resize-none text-sm bg-[#f9f8f4] text-[#4d483f] leading-relaxed custom-scrollbar" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#6d675b]">底線規則 (防呆與價目表來源)</label>
+                  <textarea value={commissionRules} onChange={(e) => setCommissionRules(e.target.value)} className="w-full h-40 p-3 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none resize-none text-sm bg-[#f9f8f4] text-[#4d483f] leading-relaxed custom-scrollbar" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-4 space-y-6">
+              <div className="wakfu-panel p-6">
+                <div className="flex items-center space-x-2 mb-4 text-[#4d483f] border-b-2 border-[#f4f2eb] pb-3">
+                  <Calculator className="w-5 h-5 text-[#4bb59b]" />
+                  <h2 className="text-lg font-bold">單筆委託計算機</h2>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-bold text-[#6d675b] mb-1 block">基礎難度定價 (JPY)</label>
+                    <input type="range" min="5000" max="15000" step="1000" value={basePriceJPY} onChange={(e) => setBasePriceJPY(Number(e.target.value))} className="w-full accent-[#4bb59b]" />
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="text-sm font-bold text-[#4d483f]">¥{basePriceJPY.toLocaleString()}</div>
+                      {clientLang !== 'ja' && <div className="text-sm font-bold text-[#368571] bg-[#f0f9f7] px-2 py-1 rounded-lg border border-[#4bb59b]/30">≈ {formatCurr(basePriceJPY, clientLang)}</div>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 bg-[#f9f8f4] p-3 rounded-xl border border-[#e5e1d8]">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="checkbox" checked={isNSFW} onChange={(e) => setIsNSFW(e.target.checked)} className="rounded text-[#4bb59b] focus:ring-[#4bb59b]" />
+                      <span className="text-sm font-bold text-[#4d483f] flex items-center"><ShieldAlert className="w-4 h-4 mr-1 text-red-400"/> NSFW (定價 x2)</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input type="checkbox" checked={isCommercial} onChange={(e) => setIsCommercial(e.target.checked)} className="rounded text-[#4bb59b] focus:ring-[#4bb59b]" />
+                      <span className="text-sm font-bold text-[#4d483f]">商用委託 (定價 x2)</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#6d675b] mb-1">插圖修改次數</label>
+                    <select value={revisions} onChange={(e) => setRevisions(Number(e.target.value))} className="w-full p-2 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none bg-white text-sm font-bold text-[#4d483f]">
+                      <option value={0}>0 次 (一鍵出圖)</option><option value={1}>1 次 (+25%)</option><option value={2}>2 次 (+50%)</option><option value={3}>3 次 (+75%)</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-4 border-t-2 border-[#f4f2eb]">
+                    <label className="flex items-center space-x-2 cursor-pointer mb-2">
+                      <input type="checkbox" checked={isVideo} onChange={(e) => setIsVideo(e.target.checked)} className="rounded text-[#4bb59b] focus:ring-[#4bb59b]" />
+                      <span className="text-sm font-bold text-[#4d483f] flex items-center"><Video className="w-4 h-4 mr-1 text-[#368571]"/> 附加影片 (10s 720P)</span>
+                    </label>
+                    {isVideo && (
+                      <div className="pl-6 animate-in slide-in-from-top-2">
+                        <label className="block text-sm font-bold text-[#6d675b] mb-1">影片修改次數</label>
+                        <select value={videoRevisions} onChange={(e) => setVideoRevisions(Number(e.target.value))} className="w-full p-2 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none bg-white text-sm font-bold text-[#4d483f]">
+                          <option value={0}>0 次</option><option value={1}>1 次 (+25%)</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 bg-[#ebe7de] text-[#4d483f] p-5 rounded-xl border border-[#dcd7cb] relative shadow-inner">
+                    <div className="text-xs font-bold text-[#8c867a] mb-1">單筆預估總計 ({LANG_CONFIG[clientLang].curr})</div>
+                    <div className="text-3xl font-black text-[#368571] mb-3">{formatCurr(pricingResult.totalJPY, clientLang)}</div>
+                    <button onClick={() => { setMyIntent(prev => prev + `\n\n(請向客戶提供以下單筆具體報價明細，請完整保留金額與幣別：)\n${pricingResult.breakdown}`); showToast("已帶入草稿"); }} className="wakfu-btn w-full py-2 rounded-lg font-bold text-sm transition flex items-center justify-center">
+                      <Receipt className="w-4 h-4 mr-2" /> 帶入草稿 (單筆明細)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-8 space-y-6">
+              <div className="wakfu-panel p-6">
+                <div className="flex items-center justify-between mb-3 border-b-2 border-[#f4f2eb] pb-3">
+                  <h3 className="text-base font-bold text-[#4d483f] flex items-center">
+                    <MailOpen className="w-5 h-5 mr-2 text-[#4bb59b]" /> 📥 收信區：解讀客戶訊息
+                  </h3>
+                  <button onClick={handleTranslate} disabled={isTranslating} className="wakfu-btn px-4 py-1.5 rounded-lg text-sm transition flex items-center justify-center disabled:opacity-50">
+                    {isTranslating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "翻譯成中文"}
+                  </button>
+                </div>
+                <textarea value={clientMessage} onChange={(e) => setClientMessage(e.target.value)} placeholder="貼上客戶的訊息，點擊翻譯了解需求。如果你是主動找他講話提問，這裡直接留空即可。" className="w-full h-24 p-3 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none resize-none text-sm font-sans text-[#4d483f] bg-[#f9f8f4] custom-scrollbar" />
+                
+                {translatedMessage && (
+                  <div className="mt-4 p-4 bg-[#f0f9f7] rounded-xl border border-[#4bb59b]/30 relative">
+                    <button onClick={() => handleCopy(translatedMessage)} className="absolute top-2 right-2 p-1.5 text-[#368571] hover:text-[#4bb59b] transition flex items-center justify-center"><Copy className="w-4 h-4" /></button>
+                    <h4 className="text-xs font-bold text-[#368571] mb-2">中文翻譯結果：</h4>
+                    <p className="text-sm text-[#4d483f] whitespace-pre-wrap">{translatedMessage}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="wakfu-panel p-6 flex flex-col">
+                <div className="flex items-center justify-between mb-3 border-b-2 border-[#f4f2eb] pb-3">
+                  <h3 className="text-base font-bold text-[#4d483f] flex items-center">
+                    <Sparkles className="w-5 h-5 mr-2 text-[#4bb59b]" /> 📤 發信區：撰寫您的回覆 / 提問
+                  </h3>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button onClick={() => { setMyIntent(prev => prev + `\n\n(請向客戶提供以下一般價目表範圍：)\n${getLocalizedGeneralRules()}`); showToast("已帶入一般價目表"); }} className="px-3 py-1.5 bg-white hover:bg-[#f9f8f4] border border-[#e5e1d8] rounded-lg text-xs font-bold transition flex items-center justify-center text-[#6d675b] shadow-sm">
+                    <FileText className="w-3.5 h-3.5 mr-1.5 text-[#4bb59b]" /> 帶入一般價目表 (初次詢問用)
+                  </button>
+                </div>
+
+                <textarea value={myIntent} onChange={(e) => setMyIntent(e.target.value)} placeholder="請用中文寫下你想說的話..." className="w-full flex-grow min-h-[120px] p-3 border border-[#e5e1d8] rounded-xl focus:ring-2 focus:ring-[#4bb59b] outline-none resize-none text-sm bg-[#f9f8f4] font-sans mb-3 text-[#4d483f] custom-scrollbar" />
+                
+                <div className="flex justify-end">
+                  <button onClick={handleGenerateReply} disabled={isGenerating} className="wakfu-btn px-6 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center disabled:opacity-50 w-full sm:w-auto">
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : `🪄 生成 ${LANG_CONFIG[clientLang].name} 訊息`}
+                  </button>
+                </div>
+              </div>
+
+              {generatedReply && (
+                <div className="wakfu-panel p-6 border-2 border-[#4bb59b] animate-in fade-in slide-in-from-bottom-4 shadow-lg">
+                  <div className="flex items-center justify-between mb-4 border-b-2 border-[#f4f2eb] pb-3">
+                    <h3 className="text-base font-bold text-[#4d483f] flex items-center">
+                      <CheckCircle2 className="w-5 h-5 mr-2 text-[#4bb59b]" /> 最終訊息 (可直接發送)
+                    </h3>
+                    <button onClick={() => handleCopy(generatedReply)} className="wakfu-btn px-4 py-2 rounded-lg text-sm font-bold transition flex items-center justify-center">
+                      <Copy className="w-4 h-4 mr-2" /> 一鍵複製
+                    </button>
+                  </div>
+                  <textarea value={generatedReply} onChange={(e) => setGeneratedReply(e.target.value)} className="w-full h-48 p-4 border border-[#e5e1d8] rounded-xl outline-none resize-none text-base bg-[#f9f8f4] text-[#4d483f] font-sans leading-relaxed custom-scrollbar" />
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {toastMsg && (
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex items-center px-4 py-3 rounded-lg shadow-lg text-white bg-[#4bb59b] z-50 animate-in fade-in slide-in-from-bottom-4">
+              <CheckCircle2 className="w-5 h-5 mr-2" /> <span>{toastMsg}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 主應用程式 (PersonalAITools)
+    // ==========================================
+    function PersonalAITools() {
+      const [activeTab, setActiveTab] = useState(0);
+      const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+      const [isNavExpanded, setIsNavExpanded] = useState(true);
+      
+      const [aiConfig, setAiConfig] = useState({
+        provider: 'aistudio',
+        model: 'gemini-2.5-flash-preview-09-2025',
+        aiStudioKey: '',
+        gcpRegion: 'global',
+        gcpCreds: null
+      });
+
+      return (
+        <ApiConfigContext.Provider value={aiConfig}>
+          <div className="min-h-screen bg-[#f4f2eb] font-sans text-[#4d483f] relative pb-10 bg-dotted-pattern">
+            
+            {/* 浮動的 API 設置按鈕 (側邊懸浮、極致隱藏邊緣樣式) */}
+            <div className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center translate-x-[calc(100%-12px)] hover:translate-x-0 opacity-40 hover:opacity-100 transition-all duration-300 ease-out">
+              <button 
+                onClick={() => setShowGlobalSettings(true)} 
+                className="bg-white border-2 border-r-0 border-[#e5e1d8] hover:border-[#4bb59b] text-[#8c867a] hover:text-[#4bb59b] py-3 pl-3 pr-2 rounded-l-xl shadow-[-4px_4px_15px_rgba(0,0,0,0.1)] group flex items-center justify-center"
+              >
+                <Cpu className="w-6 h-6 shrink-0" />
+                <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out font-bold text-sm ml-0 group-hover:ml-2 group-hover:pr-2">API / 模型設定</span>
+              </button>
+            </div>
+
+            {showGlobalSettings && (
+              <GlobalSettingsModal aiConfig={aiConfig} setAiConfig={setAiConfig} onClose={() => setShowGlobalSettings(false)} />
+            )}
+
+            <div className="pt-8 pb-4 flex flex-col items-center">
+              <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
+                 <h1 className="text-3xl font-black text-[#4d483f] tracking-wider wakfu-header-ornament transition-all">
+                    個人 AI 小工具合集
+                 </h1>
+                 <button 
+                   onClick={() => setIsNavExpanded(!isNavExpanded)} 
+                   className="text-[#8c867a] hover:text-[#4bb59b] bg-white border-2 border-[#e5e1d8] hover:border-[#4bb59b] p-1.5 rounded-full shadow-sm transition-all duration-300 flex items-center justify-center" 
+                   title={isNavExpanded ? "收合導航列" : "展開導航列"}
+                 >
+                    {isNavExpanded ? <ChevronUp className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
+                 </button>
+              </div>
+              
+              <div className={`overflow-hidden transition-all duration-500 ease-in-out w-full flex justify-center ${isNavExpanded ? 'max-h-40 opacity-100 mb-2' : 'max-h-0 opacity-0 mb-0'}`}>
+                <div className="flex bg-[#ebe7de] border-2 border-[#dcd7cb] rounded-2xl p-1.5 shadow-inner overflow-x-auto max-w-full">
+                  <button onClick={() => setActiveTab(0)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 0 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                    <Search className="w-4 h-4 shrink-0" /> AI 感知翻譯
+                  </button>
+                  <button onClick={() => setActiveTab(1)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 1 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                    <ShieldAlert className="w-4 h-4 shrink-0" /> 媒體評分檢測
+                  </button>
+                  <button onClick={() => setActiveTab(2)} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 2 ? 'bg-white text-[#4bb59b] shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-[#e5e1d8]' : 'text-[#8c867a] hover:text-[#4d483f]'}`}>
+                    <MessageSquareText className="w-4 h-4 shrink-0" /> 報價交流系統
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 sm:px-8 max-w-7xl mx-auto mt-4 transition-all duration-500">
+              {activeTab === 0 && <App1_Translation />}
+              {activeTab === 1 && <App2_MediaScore />}
+              {activeTab === 2 && <App3_Commission />}
+            </div>
+          </div>
+        </ApiConfigContext.Provider>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PersonalAITools />);
+  </script>
+</body>
+</html>
