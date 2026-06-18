@@ -1,35 +1,31 @@
 export const config = {
-    runtime: 'edge',
+    runtime: 'edge', // 必須使用 edge 才能支援無中斷串流
 };
 
 export default async function handler(req) {
-    // 最寬鬆的 CORS 標頭設定
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
         'Access-Control-Allow-Headers': '*',
     };
 
-    // 處理瀏覽器跨域預檢請求 (OPTIONS)
+    // 完美處理瀏覽器預檢請求
     if (req.method === 'OPTIONS') {
         return new Response(null, { status: 200, headers: corsHeaders });
     }
 
-    // 從網址參數 ?target= 中取得真實目的地，避免 Header 被瀏覽器攔截
-    const url = new URL(req.url);
-    const targetUrl = url.searchParams.get('target') || req.headers.get('x-target-url');
+    // 從 Header 讀取真實目的地網址
+    const targetUrl = req.headers.get('x-target-url');
 
     if (!targetUrl) {
-        return new Response(JSON.stringify({ error: 'Missing target URL parameter' }), { 
-            status: 400, 
-            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        return new Response(JSON.stringify({ error: 'Missing x-target-url header' }), { 
+            status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         });
     }
 
     try {
         const body = (req.method === 'POST' || req.method === 'PUT') ? await req.text() : undefined;
         
-        // 向真實伺服器發起請求
         const response = await fetch(targetUrl, {
             method: req.method,
             headers: {
@@ -39,10 +35,11 @@ export default async function handler(req) {
             body
         });
 
-        // 繼承真實伺服器的回傳 Header，並強制加上跨域允許
+        // 將對方的回傳原封不動交給前端，並強制覆寫 CORS 允許跨域
         const resHeaders = new Headers(response.headers);
         resHeaders.set('Access-Control-Allow-Origin', '*');
         resHeaders.set('Access-Control-Allow-Headers', '*');
+        resHeaders.delete('content-encoding'); // 避免瀏覽器重複解碼報錯
 
         return new Response(response.body, {
             status: response.status,
@@ -50,8 +47,7 @@ export default async function handler(req) {
         });
     } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+            status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         });
     }
 }
