@@ -5,7 +5,7 @@ export const config = {
 export default async function handler(req) {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
         'Access-Control-Allow-Headers': '*',
     };
 
@@ -14,9 +14,9 @@ export default async function handler(req) {
         return new Response(null, { status: 200, headers: corsHeaders });
     }
 
-    // 改從網址參數取得真實目的地，避開自訂 Header 被攔截的問題
+    // 從網址參數取得真實目的地，避開自訂 Header 被攔截的問題
     const url = new URL(req.url);
-    const targetUrl = url.searchParams.get('target');
+    const targetUrl = url.searchParams.get('target') || req.headers.get('x-target-url');
 
     if (!targetUrl) {
         return new Response(JSON.stringify({ error: 'Missing target URL parameter' }), { 
@@ -25,14 +25,24 @@ export default async function handler(req) {
     }
 
     try {
-        const body = (req.method !== 'GET' && req.method !== 'HEAD') ? await req.text() : undefined;
+        const isGet = req.method === 'GET' || req.method === 'HEAD';
+        const body = isGet ? undefined : await req.text();
         
+        const headers = new Headers();
+        
+        // 複製重要的 Headers
+        ['Accept', 'Authorization'].forEach(h => {
+            if (req.headers.has(h)) headers.set(h, req.headers.get(h));
+        });
+
+        // ⚠️關鍵修正：只有非 GET 請求才加上 Content-Type，否則會觸發 400 Bad Request
+        if (!isGet) {
+            headers.set('Content-Type', req.headers.get('Content-Type') || 'application/json');
+        }
+
         const response = await fetch(targetUrl, {
             method: req.method,
-            headers: {
-                'Accept': req.headers.get('Accept') || '*/*',
-                'Content-Type': req.headers.get('Content-Type') || 'application/json',
-            },
+            headers,
             body
         });
 
