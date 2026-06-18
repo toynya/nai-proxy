@@ -1,56 +1,57 @@
 export const config = {
-  runtime: 'edge', // 必須設定為 edge 才能支援 SSE 串流
+    runtime: 'edge',
 };
 
 export default async function handler(req) {
-  // 處理 CORS 預檢請求
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: {
+    // 最寬鬆的 CORS 標頭設定
+    const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
         'Access-Control-Allow-Headers': '*',
-      },
-    });
-  }
+    };
 
-  // 從 Headers 中取得要代理的真實目標網址
-  const targetUrl = req.headers.get('x-target-url');
-  if (!targetUrl) {
-    return new Response(JSON.stringify({ error: 'Missing x-target-url header' }), { 
-      status: 400, 
-      headers: { 'Access-Control-Allow-Origin': '*' } 
-    });
-  }
+    // 處理瀏覽器跨域預檢請求 (OPTIONS)
+    if (req.method === 'OPTIONS') {
+        return new Response(null, { status: 200, headers: corsHeaders });
+    }
 
-  try {
-    const body = req.method !== 'GET' && req.method !== 'HEAD' ? await req.text() : undefined;
+    // 從網址參數 ?target= 中取得真實目的地，避免 Header 被瀏覽器攔截
+    const url = new URL(req.url);
+    const targetUrl = url.searchParams.get('target') || req.headers.get('x-target-url');
 
-    // 向真實伺服器 (HuggingFace) 發起請求
-    const response = await fetch(targetUrl, {
-      method: req.method,
-      headers: {
-        'Accept': req.headers.get('Accept') || '*/*',
-        'Content-Type': req.headers.get('Content-Type') || 'application/json',
-      },
-      body
-    });
+    if (!targetUrl) {
+        return new Response(JSON.stringify({ error: 'Missing target URL parameter' }), { 
+            status: 400, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        });
+    }
 
-    // 複製對方的回傳 Header，並強制加上允許跨域
-    const newHeaders = new Headers(response.headers);
-    newHeaders.set('Access-Control-Allow-Origin', '*');
-    newHeaders.set('Access-Control-Allow-Headers', '*');
+    try {
+        const body = (req.method === 'POST' || req.method === 'PUT') ? await req.text() : undefined;
+        
+        // 向真實伺服器發起請求
+        const response = await fetch(targetUrl, {
+            method: req.method,
+            headers: {
+                'Accept': req.headers.get('Accept') || '*/*',
+                'Content-Type': req.headers.get('Content-Type') || 'application/json',
+            },
+            body
+        });
 
-    // 將 Stream 串流或文字直接中轉回傳給前端
-    return new Response(response.body, {
-      status: response.status,
-      headers: newHeaders,
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: { 'Access-Control-Allow-Origin': '*' }
-    });
-  }
+        // 繼承真實伺服器的回傳 Header，並強制加上跨域允許
+        const resHeaders = new Headers(response.headers);
+        resHeaders.set('Access-Control-Allow-Origin', '*');
+        resHeaders.set('Access-Control-Allow-Headers', '*');
+
+        return new Response(response.body, {
+            status: response.status,
+            headers: resHeaders
+        });
+    } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+        });
+    }
 }
