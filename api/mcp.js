@@ -1,44 +1,37 @@
 export const config = {
-    runtime: 'edge', // 必須使用 edge 才能支援無中斷串流
+    runtime: 'edge', 
 };
 
 export default async function handler(req) {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': '*',
+        // ⚠️ 核心關鍵：必須暴露 mcp-session-id 讓瀏覽器前端可以讀取
+        'Access-Control-Expose-Headers': 'mcp-session-id, content-type', 
     };
 
-    // 完美處理瀏覽器預檢請求
     if (req.method === 'OPTIONS') {
         return new Response(null, { status: 200, headers: corsHeaders });
     }
 
-    // 從網址參數取得真實目的地，避開自訂 Header 被攔截的問題
     const url = new URL(req.url);
     const targetUrl = url.searchParams.get('target') || req.headers.get('x-target-url');
 
     if (!targetUrl) {
-        return new Response(JSON.stringify({ error: 'Missing target URL parameter' }), { 
+        return new Response(JSON.stringify({ error: 'Missing target URL' }), { 
             status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         });
     }
 
     try {
-        const isGet = req.method === 'GET' || req.method === 'HEAD';
-        const body = isGet ? undefined : await req.text();
+        const body = (req.method !== 'GET' && req.method !== 'HEAD') ? await req.text() : undefined;
         
         const headers = new Headers();
-        
-        // 複製重要的 Headers
-        ['Accept', 'Authorization'].forEach(h => {
+        // ⚠️ 將前端傳來的特殊 Header 原封不動轉發給 HF
+        ['Accept', 'Authorization', 'Content-Type', 'mcp-session-id'].forEach(h => {
             if (req.headers.has(h)) headers.set(h, req.headers.get(h));
         });
-
-        // ⚠️關鍵修正：只有非 GET 請求才加上 Content-Type，否則會觸發 400 Bad Request
-        if (!isGet) {
-            headers.set('Content-Type', req.headers.get('Content-Type') || 'application/json');
-        }
 
         const response = await fetch(targetUrl, {
             method: req.method,
@@ -46,11 +39,11 @@ export default async function handler(req) {
             body
         });
 
-        // 將對方的回傳原封不動交給前端，並強制覆寫 CORS 允許跨域
         const resHeaders = new Headers(response.headers);
         resHeaders.set('Access-Control-Allow-Origin', '*');
         resHeaders.set('Access-Control-Allow-Headers', '*');
-        resHeaders.delete('content-encoding'); // 避免瀏覽器重複解碼報錯
+        resHeaders.set('Access-Control-Expose-Headers', 'mcp-session-id, content-type');
+        resHeaders.delete('content-encoding');
 
         return new Response(response.body, {
             status: response.status,
