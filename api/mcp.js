@@ -5,7 +5,7 @@ export const config = {
 export default async function handler(req) {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': '*',
     };
 
@@ -14,17 +14,18 @@ export default async function handler(req) {
         return new Response(null, { status: 200, headers: corsHeaders });
     }
 
-    // 從 Header 讀取真實目的地網址
-    const targetUrl = req.headers.get('x-target-url');
+    // 改從網址參數取得真實目的地，避開自訂 Header 被攔截的問題
+    const url = new URL(req.url);
+    const targetUrl = url.searchParams.get('target');
 
     if (!targetUrl) {
-        return new Response(JSON.stringify({ error: 'Missing x-target-url header' }), { 
+        return new Response(JSON.stringify({ error: 'Missing target URL parameter' }), { 
             status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         });
     }
 
     try {
-        const body = (req.method === 'POST' || req.method === 'PUT') ? await req.text() : undefined;
+        const body = (req.method !== 'GET' && req.method !== 'HEAD') ? await req.text() : undefined;
         
         const response = await fetch(targetUrl, {
             method: req.method,
