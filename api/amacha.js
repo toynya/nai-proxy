@@ -31,10 +31,8 @@ export default async function handler(req, res) {
   }
 
   // 2. 獲取前端傳來的目標 URL
-  // 優先從網址參數 (GET) 獲取
   let targetUrl = req.query.url || req.query.targetUrl;
 
-  // 如果是 POST 且網址裡沒有帶參數，就手動從 body 解開
   if (!targetUrl && req.method === 'POST') {
     try {
       const rawBody = await getRawBody(req);
@@ -42,9 +40,7 @@ export default async function handler(req, res) {
         const bodyData = JSON.parse(rawBody);
         targetUrl = bodyData.url || bodyData.targetUrl;
       }
-    } catch (e) {
-      // JSON 解析失敗忽略，交給下面的 400 報錯
-    }
+    } catch (e) {}
   }
 
   if (!targetUrl) {
@@ -54,17 +50,27 @@ export default async function handler(req, res) {
   try {
     const parsedUrl = new URL(targetUrl);
     
-    // 安全防護：只允許代理甘茶の音楽工房
+    // 安全防護
     if (parsedUrl.hostname !== 'amachamusic.chagasi.com') {
       return res.status(403).json({ error: "不允許代理此網域，僅限 amachamusic.chagasi.com" });
     }
 
-    // 3. 發起請求
+    // 3. 發起請求 (⚠️ 關鍵修改：完美偽裝成 Windows Chrome 瀏覽器)
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'TRPG-Frontend-BGM-Fetcher/1.0',
-        'Referer': 'https://amachamusic.chagasi.com/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8,zh-TW;q=0.7,zh;q=0.6',
+        'Referer': 'https://amachamusic.chagasi.com/',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
       }
     });
 
@@ -77,11 +83,9 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', contentType);
 
     if (contentType.includes('text/html')) {
-      // 如果是網頁，回傳純文字讓前端去解析
       const text = await response.text();
       res.status(200).send(text);
     } else {
-      // 如果是 MP3 音檔，回傳二進位 Buffer (完美透傳音訊流)
       const buffer = await response.arrayBuffer();
       res.status(200).send(Buffer.from(buffer));
     }
