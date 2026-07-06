@@ -1,53 +1,55 @@
-// 宣告使用 Edge Runtime (音樂串流必備)
-export const config = { runtime: 'edge' };
+export default async function handler(req, res) {
+  // 1. CORS 安全標頭
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-export default async function handler(req) {
-  // CORS 預檢
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': '*'
-      }
-    });
-  }
+  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  // 獲取網址
-  const url = new URL(req.url);
-  const targetUrl = url.searchParams.get('url') || url.searchParams.get('targetUrl');
+  // 2. 從 query 取得目標 URL (因為是 GET 請求，參數放在網址後面)
+  // 範例: /api/amacha?url=https://amachamusic.chagasi.com/music_healing.html
+  const targetUrl = req.query.url;
 
   if (!targetUrl) {
-    return Response.json({ error: "缺少 url 參數" }, { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
+    return res.status(400).json({ error: "缺少 url 參數" });
   }
 
   try {
     const parsedUrl = new URL(targetUrl);
+    
+    // 安全防護：只允許代理甘茶の音楽工房
     if (parsedUrl.hostname !== 'amachamusic.chagasi.com') {
-      return Response.json({ error: "僅限代理 amachamusic.chagasi.com" }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } });
+      return res.status(403).json({ error: "不允許代理此網域，僅限 amachamusic.chagasi.com" });
     }
 
-    // 發起請求抓音樂或網頁
+    // 3. 發起請求
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'TRPG-Frontend-BGM-Fetcher/1.0',
         'Referer': 'https://amachamusic.chagasi.com/'
       }
     });
 
-    // 準備回傳標頭
-    const responseHeaders = new Headers(response.headers);
-    responseHeaders.set('Access-Control-Allow-Origin', '*');
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Amacha API 錯誤: ${response.statusText}` });
+    }
 
-    // 關鍵：將 response.body 作為 ReadableStream 直接回傳，讓前端可以邊載入邊播放 MP3！
-    return new Response(response.body, {
-      status: response.status,
-      headers: responseHeaders
-    });
+    // 4. 判斷回傳類型 (HTML 網頁 還是 MP3 檔案)
+    const contentType = response.headers.get('content-type') || '';
+    res.setHeader('Content-Type', contentType);
+
+    if (contentType.includes('text/html')) {
+      // 如果是網頁，回傳純文字讓前端去解析
+      const text = await response.text();
+      res.status(200).send(text);
+    } else {
+      // 如果是 MP3 音檔，回傳二進位 Buffer
+      const buffer = await response.arrayBuffer();
+      res.status(200).send(Buffer.from(buffer));
+    }
 
   } catch (error) {
-    return Response.json({ error: "Amacha Edge 代理錯誤: " + error.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
+    res.status(500).json({ error: "Amacha 代理內部錯誤: " + error.message });
   }
 }
