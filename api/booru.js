@@ -12,14 +12,17 @@ async function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
+  // 1. CORS 安全標頭 (保持原樣)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
+  // 2. 獲取前端傳來的目標 URL (改成手動解析防護版)
   let targetUrl = req.query.url || req.query.targetUrl;
 
+  // 如果是 POST 且網址裡沒有帶參數，就手動從 body 解開
   if (!targetUrl && req.method === 'POST') {
     try {
       const rawBody = await getRawBody(req);
@@ -27,7 +30,9 @@ export default async function handler(req, res) {
         const bodyData = JSON.parse(rawBody);
         targetUrl = bodyData.targetUrl || bodyData.api || bodyData.url;
       }
-    } catch (e) {}
+    } catch (e) {
+      // JSON 解析失敗忽略，交給下面的 400 報錯
+    }
   }
 
   if (!targetUrl) {
@@ -38,33 +43,22 @@ export default async function handler(req, res) {
     const parsedUrl = new URL(targetUrl);
     const allowedDomains = ['danbooru.donmai.us', 'gelbooru.com', 'e621.net', 'e926.net'];
     
+    // 安全防護：只允許代理這四個指定的 booru 網站
     if (!allowedDomains.includes(parsedUrl.hostname)) {
       return res.status(403).json({ error: "不允許代理此網域" });
     }
 
-    // 【針對 e621 的特殊處理】：給它一個符合官方規範的 User-Agent
-    let customUserAgent = 'BooruTagFetcherProxy/1.0 (Frontend CORS Bypass)';
-    if (parsedUrl.hostname.includes('e621') || parsedUrl.hostname.includes('e926')) {
-      // e621 要求格式： 專案名/版本號 (by 你的帳號名 on e621)
-      // 我們隨機偽裝一個合理的名字來繞過審查
-      customUserAgent = 'MyPromptTool/1.0 (by Toynya on e621)';
-    }
-
+    // 3. 發起請求 (完全保持你原本可以通過 e621 的 User-Agent！)
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': customUserAgent,
+        'User-Agent': 'BooruTagFetcherProxy/1.0 (Frontend CORS Bypass)',
         'Accept': 'application/json'
       }
     });
 
     if (!response.ok) {
-      // 將 e621 的真實錯誤訊息抓出來，這樣就算報錯我們也知道原因
-      const errText = await response.text();
-      return res.status(response.status).json({ 
-          error: `Booru API 錯誤: HTTP ${response.status}`, 
-          details: errText.substring(0, 200) 
-      });
+      return res.status(response.status).json({ error: `Booru API 錯誤: ${response.statusText}` });
     }
 
     const data = await response.json();
