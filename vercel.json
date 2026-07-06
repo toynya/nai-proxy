@@ -9,11 +9,5 @@
         { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-target-service, x-gcp-json" }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/api/gemini", "destination": "/api/gemini" },
-    { "source": "/api/booru", "destination": "/api/booru" },
-    { "source": "/api/amacha", "destination": "/api/amacha" },
-    { "source": "/api/(.*)", "destination": "/api" }
   ]
 }
