@@ -1,23 +1,34 @@
-// 檔名：api/amacha.js
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+// 宣告使用 Edge Runtime (音樂串流必備)
+export const config = { runtime: 'edge' };
 
-  // 正確獲取網址參數
-  const targetUrl = req.query.url || req.query.targetUrl;
+export default async function handler(req) {
+  // CORS 預檢
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      }
+    });
+  }
+
+  // 獲取網址
+  const url = new URL(req.url);
+  const targetUrl = url.searchParams.get('url') || url.searchParams.get('targetUrl');
 
   if (!targetUrl) {
-    return res.status(400).json({ error: "缺少 url 參數" });
+    return Response.json({ error: "缺少 url 參數" }, { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 
   try {
     const parsedUrl = new URL(targetUrl);
     if (parsedUrl.hostname !== 'amachamusic.chagasi.com') {
-      return res.status(403).json({ error: "僅限代理 amachamusic.chagasi.com" });
+      return Response.json({ error: "僅限代理 amachamusic.chagasi.com" }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
+    // 發起請求抓音樂或網頁
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
@@ -26,14 +37,17 @@ export default async function handler(req, res) {
       }
     });
 
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    res.setHeader('Content-Type', contentType);
-    res.status(response.status);
+    // 準備回傳標頭
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
 
-    const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
+    // 關鍵：將 response.body 作為 ReadableStream 直接回傳，讓前端可以邊載入邊播放 MP3！
+    return new Response(response.body, {
+      status: response.status,
+      headers: responseHeaders
+    });
 
   } catch (error) {
-    res.status(500).json({ error: "Amacha 代理錯誤: " + error.message });
+    return Response.json({ error: "Amacha Edge 代理錯誤: " + error.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 }
