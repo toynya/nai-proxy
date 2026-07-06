@@ -1,56 +1,63 @@
-// 檔名：api/[...nai].js
-export const config = { api: { bodyParser: false } };
+// 宣告使用 Edge Runtime (突破超時與體積限制)
+export const config = { runtime: 'edge' };
 
-async function getRawBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => { body += chunk.toString(); });
-    req.on('end', () => { resolve(body); });
-    req.on('error', reject);
-  });
-}
+export default async function handler(req) {
+  // 1. 處理 CORS OPTIONS 預檢
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      }
+    });
+  }
 
-export default async function handler(req, res) {
-  // 後端兜底 CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-target-service');
-
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
-
-  const targetType = req.headers['x-target-service'];
-  if (!targetType) return res.status(400).json({ error: "Missing x-target-service header" });
+  // 2. 獲取目標服務 (user 或 image)
+  const targetType = req.headers.get('x-target-service');
+  if (!targetType) {
+    return Response.json({ error: "缺少 x-target-service 標頭" }, { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
+  }
 
   const targetBaseUrl = targetType === 'user' ? 'https://api.novelai.net' : 'https://image.novelai.net';
   
-  // Vercel Catch-All 會自動保留原始路徑，例如 /api/user/information
-  const targetPath = req.url.replace(/^\/api/, ''); 
-  const targetUrl = targetBaseUrl + targetPath;
+  // 3. 解析路徑
+  const url = new URL(req.url);
+  let targetPath = url.pathname.replace(/^\/api\//, ''); // 拔掉 /api/
+  const targetUrl = `${targetBaseUrl}/${targetPath}`;
 
   try {
-    let rawBody = undefined;
-    if (['POST', 'PUT'].includes(req.method)) {
-      rawBody = await getRawBody(req);
-    }
+    // 4. 準備轉發的 Headers
+    const fetchHeaders = new Headers();
+    const auth = req.headers.get('authorization');
+    if (auth) fetchHeaders.set('Authorization', auth);
+    
+    const contentType = req.headers.get('content-type');
+    if (contentType) fetchHeaders.set('Content-Type', contentType);
 
-    const response = await fetch(targetUrl, {
+    // 5. 準備轉發設定
+    const fetchOptions = {
       method: req.method,
-      headers: {
-        'Content-Type': req.headers['content-type'] || 'application/json',
-        'Authorization': req.headers.authorization
-      },
-      body: rawBody
+      headers: fetchHeaders,
+      // Edge 環境下，直接將 req.body 串流導向目標，不需要任何 Buffer 解析！
+      body: (req.method !== 'GET' && req.method !== 'HEAD') ? req.body : undefined,
+      duplex: 'half' // 啟用串流必備屬性
+    };
+
+    // 6. 發起請求
+    const response = await fetch(targetUrl, fetchOptions);
+
+    // 7. 將目標的 Response 原封不動串流回前端，並補上 CORS
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
+
+    return new Response(response.body, {
+      status: response.status,
+      headers: responseHeaders
     });
 
-    const contentType = response.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
-    
-    // 原封不動回傳 (不論是 JSON 還是 ZIP 都能完美傳遞)
-    res.status(response.status);
-    const buffer = await response.arrayBuffer();
-    res.send(Buffer.from(buffer));
-
   } catch (error) {
-    res.status(500).json({ error: "NAI 代理內部錯誤: " + error.message });
+    return Response.json({ error: "NAI Edge 代理錯誤: " + error.message }, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 }
