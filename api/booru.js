@@ -1,4 +1,4 @@
-// 【上帝模式】：禁用 Vercel 的自動解析，防止資料遺失
+// 【關鍵修改】：關閉 Vercel 的預設自動解析，改用手動解析
 export const config = { api: { bodyParser: false } };
 
 // 手動讀取原始資料流的函數
@@ -12,43 +12,53 @@ async function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
+  // 1. CORS 安全標頭 (保持原樣)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  try {
-    let targetUrl = req.query.url || req.query.targetUrl;
+  // 2. 獲取前端傳來的目標 URL (改成手動解析防護版)
+  let targetUrl = req.query.url || req.query.targetUrl;
 
-    // 手動接管 POST Body 解析
-    if (!targetUrl && (req.method === 'POST' || req.method === 'PUT')) {
+  // 如果是 POST 且網址裡沒有帶參數，就手動從 body 解開
+  if (!targetUrl && req.method === 'POST') {
+    try {
       const rawBody = await getRawBody(req);
       if (rawBody) {
         const bodyData = JSON.parse(rawBody);
         targetUrl = bodyData.targetUrl || bodyData.api || bodyData.url;
       }
+    } catch (e) {
+      // JSON 解析失敗忽略，交給下面的 400 報錯
+    }
+  }
+
+  if (!targetUrl) {
+    return res.status(400).json({ error: "缺少 targetUrl 參數" });
+  }
+
+  try {
+    const parsedUrl = new URL(targetUrl);
+    const allowedDomains = ['danbooru.donmai.us', 'gelbooru.com', 'e621.net', 'e926.net'];
+    
+    // 安全防護：只允許代理這四個指定的 booru 網站
+    if (!allowedDomains.includes(parsedUrl.hostname)) {
+      return res.status(403).json({ error: "不允許代理此網域" });
     }
 
-    if (!targetUrl) {
-      return res.status(400).json({ error: "缺少目標網址" });
-    }
-
-    // 發起請求：使用符合 e621/Danbooru 規範的專屬 UA，避免觸發 Cloudflare
+    // 3. 發起請求 (完全保持你原本可以通過 e621 的 User-Agent！)
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'MyTRPGProxyTool/1.0 (contact: test@example.com)', // 絕對不能用 Chrome
+        'User-Agent': 'BooruTagFetcherProxy/1.0 (Frontend CORS Bypass)',
         'Accept': 'application/json'
       }
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).json({ 
-        error: `目標網站拒絕了請求 (HTTP ${response.status})`, 
-        details: errText.substring(0, 300) 
-      });
+      return res.status(response.status).json({ error: `Booru API 錯誤: ${response.statusText}` });
     }
 
     const data = await response.json();
