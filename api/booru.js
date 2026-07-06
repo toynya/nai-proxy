@@ -1,3 +1,16 @@
+// 【上帝模式】：禁用 Vercel 的自動解析，防止資料遺失
+export const config = { api: { bodyParser: false } };
+
+// 手動讀取原始資料流的函數
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', () => { resolve(body); });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -5,48 +18,31 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  // 1. 強制解析參數
-  let bodyData = req.body || {};
-  if (typeof req.body === 'string') {
-    try { bodyData = JSON.parse(req.body); } catch (e) {}
-  } else if (Buffer.isBuffer(req.body)) {
-    try { bodyData = JSON.parse(req.body.toString()); } catch (e) {}
-  }
-
-  // 嘗試獲取目標網址
-  let targetUrl = req.query.url || req.query.targetUrl || bodyData.targetUrl || bodyData.api || bodyData.url;
-
-  if (!targetUrl) {
-    return res.status(400).json({ error: "缺少目標網址", receivedBody: bodyData });
-  }
-
   try {
-    const parsedUrl = new URL(targetUrl);
-    
-    // 2. 放寬白名單：只要結尾是 donmai.us (涵蓋 danbooru, safebooru 等)
-    const isValidDomain = 
-      parsedUrl.hostname.endsWith('donmai.us') || 
-      parsedUrl.hostname.endsWith('gelbooru.com') || 
-      parsedUrl.hostname.endsWith('e621.net') || 
-      parsedUrl.hostname.endsWith('e926.net');
+    let targetUrl = req.query.url || req.query.targetUrl;
 
-    if (!isValidDomain) {
-      return res.status(403).json({ 
-        error: "Vercel 代理攔截：不允許的網域", 
-        hostname: parsedUrl.hostname 
-      });
+    // 手動接管 POST Body 解析
+    if (!targetUrl && (req.method === 'POST' || req.method === 'PUT')) {
+      const rawBody = await getRawBody(req);
+      if (rawBody) {
+        const bodyData = JSON.parse(rawBody);
+        targetUrl = bodyData.targetUrl || bodyData.api || bodyData.url;
+      }
     }
 
-    // 3. 發起請求：完美偽裝成 Chrome 瀏覽器，避免被 Danbooru 擋下
+    if (!targetUrl) {
+      return res.status(400).json({ error: "缺少目標網址" });
+    }
+
+    // 發起請求：使用符合 e621/Danbooru 規範的專屬 UA，避免觸發 Cloudflare
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*'
+        'User-Agent': 'MyTRPGProxyTool/1.0 (contact: test@example.com)', // 絕對不能用 Chrome
+        'Accept': 'application/json'
       }
     });
 
-    // 4. 如果被目標網站拒絕，明確回傳細節
     if (!response.ok) {
       const errText = await response.text();
       return res.status(response.status).json({ 
@@ -57,6 +53,7 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     res.status(200).json(data);
+
   } catch (error) {
     res.status(500).json({ error: "Booru 代理內部錯誤: " + error.message });
   }
